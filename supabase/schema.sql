@@ -359,3 +359,34 @@ to authenticated using (auth.uid() = user_id);
 
 alter publication supabase_realtime add table public.notifications;
 
+-- ================================
+-- MODERATION LOGS & SPAM
+-- ================================
+create table public.admin_logs (
+  id bigserial primary key,
+  admin_id uuid references auth.users(id) on delete cascade,
+  action text,
+  target_user uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+create table public.user_activity (
+  id bigserial primary key,
+  user_id uuid references auth.users(id) on delete cascade,
+  action text,
+  created_at timestamptz default now()
+);
+
+alter table public.admin_logs enable row level security;
+alter table public.user_activity enable row level security;
+
+create policy "admins can insert logs"
+on public.admin_logs for insert
+to authenticated with check (
+  exists (select 1 from public.admin_users where user_id = auth.uid())
+);
+
+create policy "users can insert own activity"
+on public.user_activity for insert
+to authenticated with check (auth.uid() = user_id);
+

@@ -62,6 +62,14 @@ export default function AdminPage() {
     const newBanned = !profile.is_banned;
     const { error } = await supabase.from('profiles').update({ is_banned: newBanned }).eq('id', profile.id);
     if (error) { toast.error('Failed to update'); setBanning(null); return; }
+    
+    // Log admin action
+    await supabase.from('admin_logs').insert({
+      admin_id: user?.id,
+      action: newBanned ? 'ban_user' : 'unban_user',
+      target_user: profile.id,
+    });
+
     setUsers(prev => prev.map(u => u.id === profile.id ? { ...u, is_banned: newBanned } : u));
     toast.success(newBanned ? 'User banned' : 'User unbanned');
     setBanning(null);

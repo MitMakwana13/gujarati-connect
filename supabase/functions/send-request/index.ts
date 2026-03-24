@@ -5,21 +5,42 @@ serve(async (req) => {
   try {
     const { toUserId } = await req.json();
 
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return new Response("Missing auth", { status: 401 });
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
     );
 
     const {
       data: { user },
-    } = await supabase.auth.getUser(req.headers.get("Authorization")!);
+      error: authError,
+    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
 
-    if (!user) {
+    if (authError || !user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
     if (user.id === toUserId) {
       return new Response("Cannot connect to yourself", { status: 400 });
+    }
+
+    // Blocked check
+    const { data: blocked } = await supabase
+      .from("user_blocks")
+      .select("*")
+      .or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`)
+      .eq("blocked_id", toUserId)
+      .maybeSingle();
+
+    if (blocked) {
+      return new Response("User blocked", { status: 403 });
     }
 
     // Rate limit check
@@ -30,14 +51,25 @@ serve(async (req) => {
       .eq("action", "connect")
       .maybeSingle();
 
-    if (limitData && limitData.count >= 10) {
+    const now = new Date();
+    let currentCount = limitData?.count || 0;
+    
+    if (limitData?.last_reset) {
+      const lastReset = new Date(limitData.last_reset);
+      if (now.getDate() !== lastReset.getDate()) {
+        currentCount = 0; // reset daily
+      }
+    }
+
+    if (currentCount >= 10) {
       return new Response("Daily limit reached", { status: 429 });
     }
 
     await supabase.from("rate_limits").upsert({
       user_id: user.id,
       action: "connect",
-      count: (limitData?.count || 0) + 1,
+      count: currentCount + 1,
+      last_reset: now.toISOString(),
     });
 
     const { data: existing } = await supabase
