@@ -1,0 +1,38 @@
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\MIT\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\package-lock.json
+
+Error occurred prerendering page "/admin". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL.
+    at <unknown> (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\_gemini_antigravity_scratch_gujarati-connect_0nza3bj._.js:37:43510)
+    at new cu (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\_gemini_antigravity_scratch_gujarati-connect_0nza3bj._.js:37:43692)
+    at module evaluation (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\_gemini_antigravity_scratch_gujarati-connect_0nza3bj._.js:37:48030)
+    at instantiateModule (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\_gemini_antigravity_scratch_gujarati-connect_0ohrvlo._.js:177:10661)
+    at instantiateModule (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\[turbopack]_runtime.js:877:12)
+    at Context.commonJsRequire [as r] (C:\Users\MIT\.gemini\antigravity\scratch\gujarati-connect\.next\server\chunks\ssr\[turbopack]_runtime.js:302:12) {
+  digest: '51893820'
+}
+Export encountered an error on /admin/page: /admin, exiting the build.
+⨯ Next.js build worker exited with code: 1 and signal: null
+
+STDOUT:
+
+> gujarati-connect@0.1.0 build
+> next build
+
+▲ Next.js 16.2.1 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.8s
+  Running TypeScript ...
+  Finished TypeScript in 3.3s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/10) ...
