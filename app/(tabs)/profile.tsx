@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, SafeAreaView, Dimensions, ActivityIndicator, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Colors, Typography } from '@/constants/theme';
-import { Settings, Edit3, MapPin, UserCheck, X, MessageCircle, ChevronDown } from 'lucide-react-native';
+import { Settings, Edit3, UserCheck, X, MessageCircle, ChevronDown } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useFocusEffect } from 'expo-router';
+import ReportSheet from '@/components/ReportSheet';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -36,6 +37,7 @@ export default function ProfileScreen() {
   const [requests, setRequests] = useState<any[]>([]);
   const [network, setNetwork] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reportTarget, setReportTarget] = useState<string | null>(null); // profile id to report
 
   // We use useFocusEffect to refresh profile in case they just returned from edit profile
   useFocusEffect(
@@ -115,9 +117,12 @@ export default function ProfileScreen() {
             <TouchableOpacity onPress={() => router.push('/edit-profile')} style={styles.iconBtn}>
               <Edit3 size={20} color={Colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/settings')} style={styles.iconBtn}>
-              <Settings size={20} color={Colors.text} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {/* Report own profile not shown — only makes sense for other users */}
+              <TouchableOpacity onPress={() => router.push('/settings')} style={styles.iconBtn}>
+                <Settings size={20} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.profileInfo}>
@@ -270,6 +275,16 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Report Sheet — for reporting another user's profile */}
+      {reportTarget && (
+        <ReportSheet
+          visible={!!reportTarget}
+          contentType="profile"
+          contentId={reportTarget}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

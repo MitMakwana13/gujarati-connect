@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, SafeAreaView, ActivityIndicator, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Typography } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Camera, MapPin as MapPinIcon, Heart, MessageCircle, Share2, X, Send } from 'lucide-react-native';
+import { Camera, MapPin as MapPinIcon, X, Send } from 'lucide-react-native';
+import ReportSheet from '@/components/ReportSheet';
 
 const POSTS_PER_PAGE = 10;
 
@@ -27,6 +28,9 @@ export default function CommunityScreen() {
   const [comments, setComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
+
+  // Report Sheet State
+  const [reportTarget, setReportTarget] = useState<{ type: 'post'|'comment'|'profile'; id: string } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -175,6 +179,13 @@ export default function CommunityScreen() {
              <Text style={styles.postTimeMeta}>🌍 {item.author?.current_city || 'Worldwide'}</Text>
           </View>
           <Text style={styles.postTime}>{timeAgo(item.created_at)}</Text>
+          {/* Report button */}
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={() => setReportTarget({ type: 'post', id: item.id })}
+          >
+            <Text style={styles.reportBtnText}>⚠️</Text>
+          </TouchableOpacity>
        </View>
 
        <Text style={styles.postContent}>{item.content}</Text>
@@ -289,6 +300,12 @@ export default function CommunityScreen() {
                            <Text style={styles.commentName}>{auth?.full_name || auth?.username}</Text>
                            <Text style={styles.commentText}>{item.content}</Text>
                         </View>
+                        <TouchableOpacity
+                           style={styles.reportBtn}
+                           onPress={() => setReportTarget({ type: 'comment', id: item.id })}
+                         >
+                           <Text style={styles.reportBtnText}>⚠️</Text>
+                         </TouchableOpacity>
                      </View>
                   )}}
                   contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
@@ -311,6 +328,16 @@ export default function CommunityScreen() {
             </View>
          </KeyboardAvoidingView>
       </Modal>
+
+      {/* Report Sheet */}
+      {reportTarget && (
+        <ReportSheet
+          visible={!!reportTarget}
+          contentType={reportTarget.type}
+          contentId={reportTarget.id}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
 
     </SafeAreaView>
   );
@@ -353,7 +380,7 @@ const styles = StyleSheet.create({
   tagChipText: { color: Colors.textSecondary, fontFamily: Typography.bodySemiBold, fontSize: 11 },
   tagChipTextActive: { color: Colors.saffronLight },
 
-  // Post cards — reference spec
+  // Post card
   postCard: { backgroundColor: Colors.surface, padding: 16, marginHorizontal: 16, marginBottom: 10,
     borderRadius: 14, borderWidth: 1, borderColor: Colors.border },
   postHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
@@ -364,7 +391,9 @@ const styles = StyleSheet.create({
   postHeaderInfo: { flex: 1 },
   postAuthorName: { fontSize: 13, fontFamily: Typography.bodyBold, color: Colors.text },
   postTimeMeta: { fontSize: 11, color: Colors.textSecondary, fontFamily: Typography.body },
-  postTime: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.body },
+  postTime: { fontSize: 11, color: Colors.textTertiary, fontFamily: Typography.body, marginRight: 4 },
+  reportBtn: { padding: 6 },
+  reportBtnText: { fontSize: 12 },
 
   postContent: { fontSize: 13, fontFamily: Typography.body, color: Colors.text, lineHeight: 21, marginBottom: 12 },
   postImageWrap: { borderRadius: 12, overflow: 'hidden', marginBottom: 12 },

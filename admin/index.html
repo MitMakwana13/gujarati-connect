@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GujaratiConnect — Admin Panel</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg: #0e0f11; --surface: #1a1b1f; --surface2: #21232a;
+    --border: rgba(255,255,255,0.08); --saffron: #e8892a; --saffron-light: #f5a84e;
+    --teal: #1aaea3; --text: #f2f2f3; --text2: #8a8f99; --red: #ef4444; --green: #22c55e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Inter', sans-serif; min-height: 100vh; }
+
+  /* Login */
+  #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 40px; width: 380px; }
+  .login-card h1 { font-size: 22px; margin-bottom: 6px; }
+  .login-card p { color: var(--text2); font-size: 13px; margin-bottom: 28px; }
+  input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 14px; margin-bottom: 12px; outline: none; }
+  input:focus { border-color: var(--saffron); }
+  .btn { width: 100%; padding: 13px; border-radius: 12px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-primary { background: var(--saffron); color: #fff; }
+  .btn-primary:hover { background: var(--saffron-light); }
+  #login-error { color: var(--red); font-size: 13px; margin-top: 10px; display: none; }
+
+  /* App shell */
+  #app-screen { display: none; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .topbar h1 { font-size: 18px; }
+  .topbar span { font-size: 12px; color: var(--text2); }
+  .logout-btn { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 12px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .stat-card .num { font-size: 28px; font-weight: 700; }
+  .stat-card .lbl { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
+  .pending-num { color: var(--saffron); }
+  .removed-num { color: var(--red); }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
+  .filter-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text2); border-radius: 20px; padding: 6px 16px; cursor: pointer; font-size: 13px; }
+  .filter-btn.active { background: rgba(232,137,42,0.15); border-color: var(--saffron); color: var(--saffron-light); }
+  .refresh-btn { margin-left: auto; background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 10px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+  .refresh-btn:hover { border-color: var(--saffron); color: var(--saffron); }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 12px 16px; background: var(--surface2); color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); }
+  td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-pending  { background: rgba(232,137,42,0.15); color: var(--saffron-light); }
+  .badge-reviewed { background: rgba(26,174,163,0.15); color: var(--teal); }
+  .badge-removed  { background: rgba(239,68,68,0.15); color: var(--red); }
+  .badge-dismissed{ background: rgba(255,255,255,0.06); color: var(--text2); }
+  .badge-auto     { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+  .content-preview { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+
+  .action-btns { display: flex; gap: 6px; }
+  .act-btn { border: none; border-radius: 7px; padding: 5px 12px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .act-remove   { background: rgba(239,68,68,0.12); color: var(--red); }
+  .act-remove:hover { background: rgba(239,68,68,0.25); }
+  .act-dismiss  { background: var(--surface2); color: var(--text2); }
+  .act-dismiss:hover { background: rgba(255,255,255,0.1); }
+
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--text2); font-size: 14px; }
+  #loading-msg { text-align: center; padding: 40px; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>🛡️ Admin Panel</h1>
+    <p>GujaratiConnect Content Moderation</p>
+    <input id="email" type="email" placeholder="Admin email" />
+    <input id="password" type="password" placeholder="Password" />
+    <button class="btn btn-primary" onclick="login()">Sign In</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app-screen">
+  <div class="topbar">
+    <h1>🛡️ Content Moderation</h1>
+    <div style="display:flex;gap:14px;align-items:center">
+      <span id="admin-email-label"></span>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <main>
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card"><div class="num pending-num" id="cnt-pending">—</div><div class="lbl">Pending</div></div>
+      <div class="stat-card"><div class="num" id="cnt-total">—</div><div class="lbl">Total Reports</div></div>
+      <div class="stat-card"><div class="num removed-num" id="cnt-removed">—</div><div class="lbl">Removed</div></div>
+      <div class="stat-card"><div class="num" id="cnt-auto">—</div><div class="lbl">Auto-flagged</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('pending',this)">Pending</button>
+      <button class="filter-btn" onclick="setFilter('reviewed',this)">Reviewed</button>
+      <button class="filter-btn" onclick="setFilter('removed',this)">Removed</button>
+      <button class="filter-btn" onclick="setFilter('dismissed',this)">Dismissed</button>
+      <button class="filter-btn" onclick="setFilter(null,this)">All</button>
+      <button class="refresh-btn" onclick="loadReports()">↻ Refresh</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div id="loading-msg">Loading…</div>
+      <table id="reports-table" style="display:none">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Reason</th>
+            <th>Content preview</th>
+            <th>Reporter</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="reports-tbody"></tbody>
+      </table>
+      <div id="empty-state" class="empty-state" style="display:none">✅ No reports in this view</div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── CONFIG: replace with your project values ──
+const SUPABASE_URL = 'https://zhditsdqjqkgvgfkfeha.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY_HERE'; // replace with your anon key
+// ─────────────────────────────────────────────
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentFilter = 'pending';
+
+async function login() {
+  const email = document.getElementById('email').value;
+  const pass  = document.getElementById('password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  showApp(email);
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showApp(email) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('admin-email-label').textContent = email;
+  loadStats();
+  loadReports();
+}
+
+async function loadStats() {
+  const { data: all } = await sb.from('reports').select('status, is_auto_flagged');
+  if (!all) return;
+  document.getElementById('cnt-total').textContent   = all.length;
+  document.getElementById('cnt-pending').textContent = all.filter(r => r.status === 'pending').length;
+  document.getElementById('cnt-removed').textContent = all.filter(r => r.status === 'removed').length;
+  document.getElementById('cnt-auto').textContent    = all.filter(r => r.is_auto_flagged).length;
+}
+
+async function loadReports() {
+  document.getElementById('loading-msg').style.display = 'block';
+  document.getElementById('reports-table').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'none';
+
+  let q = sb.from('reports')
+    .select('*, reporter:profiles!reports_reporter_id_fkey(full_name, username)')
+    .order('created_at', { ascending: false });
+  if (currentFilter) q = q.eq('status', currentFilter);
+
+  const { data, error } = await q;
+  document.getElementById('loading-msg').style.display = 'none';
+
+  if (error) { alert('Error: ' + error.message); return; }
+  if (!data || data.length === 0) { document.getElementById('empty-state').style.display = 'block'; return; }
+
+  // Fetch content previews
+  const rows = await Promise.all(data.map(async r => {
+    let preview = '—';
+    try {
+      if (r.content_type === 'post') {
+        const { data: p } = await sb.from('posts').select('content').eq('id', r.content_id).single();
+        preview = p?.content?.substring(0, 80) || '(deleted)';
+      } else if (r.content_type === 'comment') {
+        const { data: c } = await sb.from('comments').select('content').eq('id', r.content_id).single();
+        preview = c?.content?.substring(0, 80) || '(deleted)';
+      } else if (r.content_type === 'profile') {
+        const { data: pr } = await sb.from('profiles').select('full_name,username').eq('id', r.content_id).single();
+        preview = pr ? `${pr.full_name} (@${pr.username})` : '(deleted)';
+      }
+    } catch {}
+    return { ...r, preview };
+  }));
+
+  const tbody = document.getElementById('reports-tbody');
+  tbody.innerHTML = rows.map(r => {
+    const reporter = Array.isArray(r.reporter) ? r.reporter[0] : r.reporter;
+    const date = new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+    const autoTag = r.is_auto_flagged ? `<span class="badge badge-auto" style="margin-left:6px">🤖 Auto</span>` : '';
+    const actions = r.status === 'pending' || r.status === 'reviewed' ? `
+      <div class="action-btns">
+        <button class="act-btn act-remove"  onclick="removeContent('${r.id}','${r.content_type}','${r.content_id}')">Remove</button>
+        <button class="act-btn act-dismiss" onclick="updateStatus('${r.id}','dismissed')">Dismiss</button>
+      </div>` : '—';
+    return `<tr>
+      <td><span class="badge badge-${r.status}" style="text-transform:capitalize">${r.content_type}</span></td>
+      <td>${r.reason}${autoTag}</td>
+      <td><div class="content-preview" title="${r.preview}">${r.preview}</div></td>
+      <td>${reporter?.full_name || reporter?.username || '?'}</td>
+      <td>${date}</td>
+      <td><span class="badge badge-${r.status}">${r.status}</span></td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('reports-table').style.display = 'table';
+}
+
+async function removeContent(reportId, type, contentId) {
+  if (!confirm(`Delete this ${type}? This cannot be undone.`)) return;
+  // Delete the content
+  if (type === 'post')    await sb.from('posts').delete().eq('id', contentId);
+  if (type === 'comment') await sb.from('comments').delete().eq('id', contentId);
+  // Update report status
+  await updateStatus(reportId, 'removed', false);
+}
+
+async function updateStatus(reportId, status, reload = true) {
+  await sb.from('reports').update({ status }).eq('id', reportId);
+  if (reload) { loadStats(); loadReports(); }
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadReports();
+}
+
+// Auto-login if session exists
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) showApp(data.session.user.email);
+});
+</script>
+</body>
+</html>
