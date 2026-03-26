@@ -35,22 +35,33 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
   };
 
   return (
-    <div className="glass-card mb-6 overflow-hidden">
-      <div className="p-4">
-        <div className="flex gap-3">
-          <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500 font-bold shrink-0">
-            {profile?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
+    <div className="px-5 mb-4">
+      <div 
+        className="bg-[var(--surface2)] border border-[var(--border)] rounded-[var(--radius)] p-3.5 flex flex-col transition-colors hover:border-[var(--border2)] cursor-pointer"
+        onClick={() => !isExpanding && setIsExpanding(true)}
+      >
+        <div className="flex items-center gap-3">
+          <div 
+            className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--saffron-dark)] to-[var(--saffron)] flex items-center justify-center text-[13px] font-bold text-white shrink-0"
+          >
+            {profile?.name?.[0] || user?.email?.[0]?.toUpperCase() || 'MS'}
           </div>
           <div className="flex-1">
             <textarea
-              placeholder="What's on your mind?"
-              className="w-full bg-transparent border-none outline-none text-white placeholder-white/40 resize-none py-2 min-h-[40px] max-h-[200px]"
+              placeholder="Share something with your community…"
+              className="w-full bg-transparent border-none outline-none text-[13px] text-[var(--text)] placeholder:text-[var(--text3)] resize-none py-1 min-h-[40px] max-h-[200px]"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              onFocus={() => setIsExpanding(true)}
               rows={isExpanding ? 3 : 1}
+              autoFocus={isExpanding}
             />
           </div>
+          {!isExpanding && (
+            <div className="flex gap-2 ml-auto">
+              <div className="w-[30px] h-[30px] bg-[var(--surface3)] rounded-lg flex items-center justify-center text-sm">📷</div>
+              <div className="w-[30px] h-[30px] bg-[var(--surface3)] rounded-lg flex items-center justify-center text-sm">📍</div>
+            </div>
+          )}
         </div>
 
         <AnimatePresence>
@@ -59,38 +70,25 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="flex items-center justify-between mt-4 border-t border-white/10 pt-4"
+              className="flex items-center justify-between mt-3 border-t border-[var(--border)] pt-3 overflow-hidden"
             >
               <div className="flex gap-2">
-                <button 
-                  className="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors"
-                  title="Add Image"
-                >
-                  <ImageIcon size={20} />
-                </button>
+                <button className="p-2 rounded-lg bg-[var(--surface3)] text-lg">📷</button>
+                <button className="p-2 rounded-lg bg-[var(--surface3)] text-lg">📍</button>
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setIsExpanding(false)}
-                  className="px-4 py-2 rounded-xl text-white/60 hover:text-white transition-colors text-sm font-medium"
+                  onClick={(e) => { e.stopPropagation(); setIsExpanding(false); }}
+                  className="px-4 py-2 rounded-xl text-[var(--text3)] hover:text-[var(--text)] transition-colors text-xs font-semibold uppercase tracking-wider"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleSubmit}
+                  onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
                   disabled={isSubmitting || !content.trim()}
-                  className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-xl transition-all flex items-center gap-2 font-bold text-sm shadow-lg shadow-orange-900/20"
+                  className="bg-[var(--saffron)] hover:bg-[var(--saffron-dark)] disabled:opacity-50 text-white px-5 py-2 rounded-xl transition-all font-bold text-xs"
                 >
-                  {isSubmitting ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                    />
-                  ) : (
-                    <Send size={16} />
-                  )}
-                  Post
+                  {isSubmitting ? 'Posting...' : 'Post'}
                 </button>
               </div>
             </motion.div>

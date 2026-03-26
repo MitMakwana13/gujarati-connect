@@ -11,45 +11,31 @@ export default function BottomNav() {
   const unreadChats = useAppStore(s => s.unreadChats);
 
   const tabs = [
-    { id: '/feed', icon: Globe, label: 'Feed' },
-    { id: '/nearby', icon: Home, label: 'Nearby' },
-    { id: '/chats', icon: MessageCircle, label: 'Chats', badge: unreadChats },
-    { id: '/profile', icon: User, label: 'Profile' },
+    { id: '/nearby', icon: '🔭', label: 'Discover' },
+    { id: '/feed', icon: '🌐', label: 'Community' },
+    { id: '/events', icon: '🎉', label: 'Events' },
+    { id: '/profile', icon: '👤', label: 'Profile' },
   ];
 
   return (
-    <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-sm bg-[#0a0e19]/80 backdrop-blur-2xl border border-white/10 rounded-[32px] p-2 shadow-[0_20px_40px_rgba(0,0,0,0.6)] z-50 flex items-center justify-between">
+    <nav className="absolute bottom-0 left-0 right-0 h-[var(--tab-h)] bg-[var(--surface)] border-t border-[var(--border)] flex pb-2 z-50">
       {tabs.map((tab) => {
-        const active = pathname.startsWith(tab.id);
-        const Icon = tab.icon;
+        const active = pathname === tab.id || (tab.id !== '/' && pathname.startsWith(tab.id));
         
         return (
           <button
             key={tab.id}
             onClick={() => router.push(tab.id)}
-            className="group relative flex-1 flex flex-col items-center justify-center py-2 h-14 rounded-3xl transition-all duration-300 active:scale-95"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors duration-200 ${
+              active ? 'text-[var(--saffron)]' : 'text-[var(--text3)]'
+            }`}
           >
-            {active && (
-              <motion.div
-                layoutId="bottom-nav-active"
-                className="absolute inset-0 bg-[#f59e0b] rounded-[24px]"
-                transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-              />
-            )}
-            
-            <div className="relative z-10 flex flex-col items-center gap-1.5">
-              <Icon 
-                size={22} 
-                className={`transition-colors duration-300 ${active ? 'text-black' : 'text-[#94a3b8] group-hover:text-white'}`} 
-                strokeWidth={active ? 2.5 : 2} 
-              />
-              {tab.badge && tab.badge > 0 && (
-                <span className={`absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${active ? 'bg-black text-[#f59e0b] border-[#f59e0b]' : 'bg-[#f59e0b] text-black border-[#0a0e19]'}`}>
-                  {tab.badge > 9 ? '9+' : tab.badge}
-                </span>
-              )}
-            </div>
+            <span className={`text-xl transition-transform duration-200 ${active ? 'scale-110' : ''}`}>
+              {tab.icon}
+            </span>
+            <span className="text-[10px] font-medium tracking-wide">
+              {tab.label}
+            </span>
           </button>
         );
       })}

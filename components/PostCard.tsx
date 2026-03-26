@@ -101,162 +101,128 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      className="glass-card mb-4 overflow-hidden"
+      exit={{ opacity: 0, scale: 0.98 }}
+      className="bg-[var(--surface2)] border border-[var(--border)] rounded-[var(--radius)] p-3.5 mb-2.5 transition-colors hover:border-[var(--border2)]"
     >
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex gap-3 items-center">
-            {/* User Avatar */}
-            {/* Note: post_feed view maps name/photo_url directly to the post object */}
-            {/* We cast it here since the interface expects user.name but the view flattens it */}
-            <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500 font-bold overflow-hidden">
-              {(post as any).user_photo_url ? (
-                <img src={(post as any).user_photo_url} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                (post as any).user_name?.[0] || '?'
-              )}
-            </div>
-            
-            <div>
-              <div className="font-semibold text-white">{(post as any).user_name || 'Anonymous User'}</div>
-              <div className="text-xs text-white/50">
-                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-              </div>
-            </div>
-          </div>
-          
-          {user?.id === post.user_id && (
-            <div className="relative">
-              <button 
-                onClick={() => setShowMenu(!showMenu)}
-                className="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors"
-              >
-                <MoreHorizontal size={18} />
-              </button>
-              
-              <AnimatePresence>
-                {showMenu && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                    className="absolute right-0 top-full mt-1 bg-[#1A1A2E] border border-white/10 backdrop-blur-xl rounded-xl shadow-xl overflow-hidden z-10"
-                  >
-                    <button 
-                      onClick={handleDelete}
-                      className="flex items-center gap-2 w-full text-left px-4 py-3 text-red-400 hover:bg-white/5 transition-colors text-sm"
-                    >
-                      <Trash size={16} /> Delete Post
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+      {/* Header */}
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <div 
+          className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 shadow-sm"
+          style={{ 
+            background: 'linear-gradient(135deg, var(--saffron), #c46c10)',
+            color: '#fff' 
+          }}
+        >
+          {(post as any).user_photo_url ? (
+            <img src={(post as any).user_photo_url} alt="Profile" className="w-full h-full object-cover rounded-full" />
+          ) : (
+            (post as any).user_name?.[0] || '?'
           )}
-        </div>
-
-        {/* Content */}
-        <div className="text-white/90 whitespace-pre-wrap text-sm md:text-base mb-4 leading-relaxed">
-          {post.content}
         </div>
         
-        {post.image_url && (
-          <div className="rounded-2xl overflow-hidden mb-4 border border-white/10">
-            <img src={post.image_url} alt="Post image" className="w-full object-cover max-h-[400px]" />
+        <div className="flex-1">
+          <div className="text-[13px] font-semibold text-[var(--text)]">{(post as any).user_name || 'Anonymous User'}</div>
+          <div className="text-[11px] text-[var(--text2)] flex items-center gap-1">
+            <span>🌍</span>
+            <span>{(post as any).location || 'Global'}</span>
+            {(post as any).metadata && (post as any).metadata.community && (
+              <>
+                <span>·</span>
+                <span className="text-[var(--saffron)]">{(post as any).metadata.community}</span>
+              </>
+            )}
           </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-6 pt-3 border-t border-white/10">
-          <button 
-            onClick={handleLike}
-            className={`flex items-center gap-2 text-sm transition-colors ${isLiked ? 'text-orange-500' : 'text-white/60 hover:text-white/90'}`}
-          >
-            <motion.div whileTap={{ scale: 0.8 }}>
-              <Heart size={20} className={isLiked ? 'fill-orange-500' : ''} />
-            </motion.div>
-            <span className="font-medium">{likesCount}</span>
-          </button>
-          
-          <button 
-            onClick={toggleComments}
-            className="flex items-center gap-2 text-sm text-white/60 hover:text-white/90 transition-colors"
-          >
-            <MessageCircle size={20} />
-            <span className="font-medium">{commentsCount}</span>
-          </button>
         </div>
-
-        {/* Comments Section */}
-        <AnimatePresence>
-          {showComments && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="mt-4 pt-4 border-t border-white/10 overflow-hidden"
-            >
-              {isLoadingComments ? (
-                <div className="flex justify-center p-4">
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-orange-500 rounded-full animate-spin" />
-                </div>
-              ) : (
-                <div className="space-y-4 mb-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {comments.map(comment => (
-                    <div key={comment.id} className="flex gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0 text-white text-xs font-bold overflow-hidden">
-                        {comment.user?.photo_url ? (
-                          <img src={comment.user.photo_url} alt="User" className="w-full h-full object-cover" />
-                        ) : (
-                          comment.user?.name?.[0] || '?'
-                        )}
-                      </div>
-                      <div className="flex-1 bg-white/5 rounded-2xl p-3">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium text-white text-sm">{comment.user?.name || 'User'}</span>
-                          <span className="text-[10px] text-white/40">
-                            {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                          </span>
-                        </div>
-                        <p className="text-white/80 text-sm">{comment.content}</p>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {comments.length === 0 && (
-                    <div className="text-center text-white/40 text-sm py-2">
-                      No comments yet. Be the first to reply!
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Write a comment..."
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-2 text-sm text-white placeholder-white/40 resize-none min-h-[40px] max-h-[100px] focus:outline-none focus:border-orange-500/50"
-                    rows={1}
-                  />
-                </div>
-                <button
-                  onClick={submitComment}
-                  disabled={!newComment.trim() || isSubmittingComment}
-                  className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white p-2.5 rounded-xl transition-colors mb-[2px]"
-                >
-                  <Send size={16} />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        
+        <div className="text-[11px] text-[var(--text3)]">
+          {formatDistanceToNow(new Date(post.created_at), { addSuffix: false }).replace('about ', '')}
+        </div>
       </div>
+
+      {/* Body */}
+      <div className="text-[13px] text-[var(--text)] leading-relaxed mb-2.5 whitespace-pre-wrap">
+        {post.content}
+      </div>
+      
+      {post.image_url && (
+        <div className="rounded-[10px] overflow-hidden mb-2.5 border border-[var(--border)] h-[140px] bg-[var(--surface3)] flex items-center justify-center">
+          <img src={post.image_url} alt="Post image" className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex border-t border-[var(--border)] pt-2.5 mt-2.5">
+        <button 
+          onClick={handleLike}
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs transition-colors py-1 rounded-lg hover:bg-[var(--saffron)]/5 ${isLiked ? 'text-[var(--saffron)]' : 'text-[var(--text2)]'}`}
+        >
+          <motion.span whileTap={{ scale: 1.2 }}>❤️</motion.span>
+          <span className="font-medium text-[var(--text2)]">{likesCount}</span>
+        </button>
+        
+        <button 
+          onClick={toggleComments}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs text-[var(--text2)] transition-colors py-1 rounded-lg hover:bg-[var(--saffron)]/5"
+        >
+          <span>💬</span>
+          <span className="font-medium">{commentsCount}</span>
+        </button>
+
+        <button 
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs text-[var(--text2)] transition-colors py-1 rounded-lg hover:bg-[var(--saffron)]/5"
+        >
+          <span>🔁</span>
+          <span className="font-medium">Share</span>
+        </button>
+      </div>
+
+      {/* Comments Section (Simplified for mockup feel) */}
+      <AnimatePresence>
+        {showComments && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mt-2.5 pt-2.5 border-t border-[var(--border)] overflow-hidden"
+          >
+            {/* Standard comment logic preserved but simplified UI if needed */}
+            {/* ... keeping your existing comment list logic here ... */}
+            <div className="space-y-3 mb-3 max-h-[200px] overflow-y-auto pr-1">
+              {comments.map(comment => (
+                <div key={comment.id} className="flex gap-2">
+                  <div className="w-7 h-7 rounded-full bg-[var(--surface3)] border border-[var(--border)] flex items-center justify-center shrink-0 text-[10px] font-bold">
+                    {comment.user?.name?.[0] || '?'}
+                  </div>
+                  <div className="flex-1 bg-[var(--surface3)] rounded-xl p-2.5">
+                    <div className="flex justify-between items-start mb-0.5">
+                      <span className="font-semibold text-[var(--text)] text-xs">{comment.user?.name || 'User'}</span>
+                    </div>
+                    <p className="text-[var(--text2)] text-xs">{comment.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex gap-2">
+              <input
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Write a comment..."
+                className="flex-1 bg-[var(--surface3)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text)] placeholder:text-[var(--text3)] focus:outline-none focus:border-[var(--saffron)]"
+              />
+              <button
+                onClick={submitComment}
+                disabled={!newComment.trim() || isSubmittingComment}
+                className="bg-[var(--saffron)] hover:bg-[var(--saffron-dark)] disabled:opacity-50 text-white px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Send
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

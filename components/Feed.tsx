@@ -86,59 +86,65 @@ export default function Feed() {
   };
 
   return (
-    <div className="max-w-xl mx-auto pb-20">
+    <>
+      <div className="sec-title px-5 mb-3">Community Feed</div>
       <CreatePost onPostCreated={handlePostCreated} />
 
-      {loading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="glass-card p-4 min-h-[160px] flex flex-col gap-4">
-              <div className="flex gap-3 items-center">
-                <div className="w-10 h-10 rounded-full skeleton" />
-                <div className="space-y-2">
-                  <div className="w-32 h-4 skeleton rounded" />
-                  <div className="w-20 h-3 skeleton rounded" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="w-full h-4 skeleton rounded" />
-                <div className="w-5/6 h-4 skeleton rounded" />
-                <div className="w-4/6 h-4 skeleton rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          <AnimatePresence>
-            {posts.map((post) => (
-              <PostCard 
-                key={post.id} 
-                post={post} 
-                onDelete={handleDelete} 
-              />
-            ))}
-          </AnimatePresence>
-          
-          {posts.length === 0 && (
-            <div className="text-center py-10 text-white/50">
-              <p>No posts yet. Be the first to share something!</p>
-            </div>
-          )}
+      <div className="sec-title px-5 mt-6 mb-3">Trending now</div>
+      <div className="flex gap-1.5 flex-wrap px-5 mb-6">
+        {['Navratri2025', 'GujjuFood', 'DiasporaStories', 'DhoklaLovers', 'GujjuStartups'].map((tag, i) => (
+          <span 
+            key={tag}
+            className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all cursor-pointer border ${
+              i === 0 
+                ? 'bg-[rgba(232,137,42,0.12)] border-[rgba(232,137,42,0.4)] text-[var(--saffron-light)]' 
+                : 'bg-[var(--surface2)] border-[var(--border)] text-[var(--text2)] hover:border-[var(--border2)]'
+            }`}
+          >
+            <span className="text-[var(--saffron)] mr-0.5">#</span>{tag}
+          </span>
+        ))}
+      </div>
 
-          {hasMore && posts.length > 0 && (
-            <div className="flex justify-center mt-6">
-              <button
-                onClick={() => loadPosts()}
-                disabled={loadingMore}
-                className="btn btn-secondary px-6 rounded-full text-sm font-medium disabled:opacity-50"
-              >
-                {loadingMore ? 'Loading...' : 'Load More'}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+      <div className="px-5">
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-[var(--surface2)] border border-[var(--border)] rounded-[var(--radius)] p-4 min-h-[140px] animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <AnimatePresence>
+              {posts.map((post) => (
+                <PostCard 
+                  key={post.id} 
+                  post={post} 
+                  onDelete={handleDelete} 
+                />
+              ))}
+            </AnimatePresence>
+            
+            {posts.length === 0 && (
+              <div className="text-center py-10 text-[var(--text3)]">
+                <p>No posts yet. Be the first to share something!</p>
+              </div>
+            )}
+
+            {hasMore && posts.length > 0 && (
+              <div className="flex justify-center mt-4 pb-8">
+                <button
+                  onClick={() => loadPosts()}
+                  disabled={loadingMore}
+                  className="text-xs font-semibold text-[var(--saffron)] hover:underline disabled:opacity-50"
+                >
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }

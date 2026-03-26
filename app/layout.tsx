@@ -22,6 +22,9 @@ export const metadata: Metadata = {
   },
 };
 
+import Header from '@/components/Header';
+import BottomNav from '@/components/BottomNav';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -29,10 +32,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
       </head>
       <body>
         <AuthProvider>
-          {children}
+          <div className="app-container">
+            <Header />
+            <main className="scroll-area">
+              {children}
+            </main>
+            <BottomNav />
+          </div>
         </AuthProvider>
       </body>
     </html>
