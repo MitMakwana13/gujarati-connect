@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, MessageCircle, User } from 'lucide-react';
+import { Home, MessageCircle, User, Globe } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { motion } from 'framer-motion';
 
@@ -11,6 +11,7 @@ export default function BottomNav() {
   const unreadChats = useAppStore(s => s.unreadChats);
 
   const tabs = [
+    { id: '/feed', icon: Globe, label: 'Feed' },
     { id: '/nearby', icon: Home, label: 'Nearby' },
     { id: '/chats', icon: MessageCircle, label: 'Chats', badge: unreadChats },
     { id: '/profile', icon: User, label: 'Profile' },

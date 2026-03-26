@@ -14,7 +14,7 @@ export default function LandingPage() {
   useEffect(() => {
     if (!loading) {
       if (user && profile?.name) {
-        router.push('/nearby');
+        router.push('/feed');
       } else if (user && !profile?.name) {
         router.push('/onboarding');
       }

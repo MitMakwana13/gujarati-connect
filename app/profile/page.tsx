@@ -1,10 +1,11 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import { LogOut } from 'lucide-react';
-import { getInitials } from '@/lib/supabase';
+import { getInitials, supabase } from '@/lib/supabase';
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
@@ -68,8 +69,51 @@ export default function ProfilePage() {
            <p className="text-xs text-slate-400 mt-2">Hides your exact distance (fuzzed location within 500m area).</p>
         </div>
 
+        {/* User Posts Section */}
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold tracking-tight text-white mb-4 font-['Poppins']">Your Posts</h3>
+          <UserPosts userId={user.id} />
+        </div>
+
       </section>
       <BottomNav />
     </main>
+  );
+}
+
+function UserPosts({ userId }: { userId: string }) {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadPosts() {
+      const { data } = await supabase
+        .from('post_feed')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      setPosts(data || []);
+      setLoading(false);
+    }
+    loadPosts();
+  }, [userId]);
+
+  if (loading) return <div className="text-white/50 text-sm text-center py-4">Loading posts...</div>;
+  if (posts.length === 0) return <div className="text-white/50 text-sm text-center py-4 glass-card">You haven't posted anything yet.</div>;
+
+  return (
+    <div className="space-y-4">
+      {posts.map(post => (
+        <div key={post.id} className="glass-card p-4">
+          <p className="text-white/90 text-sm mb-3 whitespace-pre-wrap">{post.content}</p>
+          <div className="flex gap-4 text-white/50 text-xs">
+            <span>❤️ {post.likes_count}</span>
+            <span>💬 {post.comments_count}</span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

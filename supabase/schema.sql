@@ -390,3 +390,111 @@ create policy "users can insert own activity"
 on public.user_activity for insert
 to authenticated with check (auth.uid() = user_id);
 
+-- ================================
+-- SOCIAL MEDIA FEATURES
+-- ================================
+
+-- Posts table
+create table public.posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  content text not null,
+  image_url text,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+-- Comments table
+create table public.comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid references public.posts(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  content text not null,
+  created_at timestamptz default now() not null
+);
+
+-- Likes table
+create table public.likes (
+  post_id uuid references public.posts(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  created_at timestamptz default now() not null,
+  primary key (post_id, user_id)
+);
+
+-- ================================
+-- SOCIAL MEDIA RLS
+-- ================================
+
+alter table public.posts enable row level security;
+alter table public.comments enable row level security;
+alter table public.likes enable row level security;
+
+-- Posts policies
+create policy "anyone can view posts"
+on public.posts for select
+to authenticated using (true);
+
+create policy "users can create posts"
+on public.posts for insert
+to authenticated with check (auth.uid() = user_id);
+
+create policy "users can update own posts"
+on public.posts for update
+to authenticated using (auth.uid() = user_id);
+
+create policy "users can delete own posts"
+on public.posts for delete
+to authenticated using (auth.uid() = user_id);
+
+-- Comments policies
+create policy "anyone can view comments"
+on public.comments for select
+to authenticated using (true);
+
+create policy "users can create comments"
+on public.comments for insert
+to authenticated with check (auth.uid() = user_id);
+
+create policy "users can delete own comments"
+on public.comments for delete
+to authenticated using (auth.uid() = user_id);
+
+-- Likes policies
+create policy "anyone can view likes"
+on public.likes for select
+to authenticated using (true);
+
+create policy "users can toggle likes"
+on public.likes for all
+to authenticated using (auth.uid() = user_id);
+
+-- ================================
+-- SOCIAL MEDIA REALTIME
+-- ================================
+alter publication supabase_realtime add table public.posts;
+alter publication supabase_realtime add table public.comments;
+alter publication supabase_realtime add table public.likes;
+
+-- ================================
+-- TRIGGERS FOR UPDATED_AT
+-- ================================
+create trigger set_posts_updated
+before update on public.posts
+for each row execute function public.set_updated_at();
+
+-- ================================
+-- POST FEED VIEW
+-- ================================
+create or replace view public.post_feed as
+select
+  p.*,
+  pr.name as user_name,
+  pr.photo_url as user_photo_url,
+  (select count(*) from public.likes l where l.post_id = p.id) as likes_count,
+  (select count(*) from public.comments c where c.post_id = p.id) as comments_count
+from public.posts p
+join public.profiles pr on pr.id = p.user_id;
+
+alter view public.post_feed owner to postgres;
+grant select on table public.post_feed to authenticated;
+

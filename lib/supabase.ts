@@ -89,3 +89,31 @@ export function getInitials(name: string | null): string {
   if (!name) return '?';
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 }
+
+export interface Post {
+  id: string;
+  user_id: string;
+  content: string;
+  image_url: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: Profile;
+  likes_count?: number;
+  comments_count?: number;
+  is_liked?: boolean;
+}
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  user?: Profile;
+}
+
+export interface Like {
+  post_id: string;
+  user_id: string;
+  created_at: string;
+}
