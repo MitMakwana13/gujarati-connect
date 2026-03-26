@@ -91,17 +91,13 @@ export default function Feed() {
       <CreatePost onPostCreated={handlePostCreated} />
 
       <div className="sec-title px-5 mt-6 mb-3">Trending now</div>
-      <div className="flex gap-1.5 flex-wrap px-5 mb-6">
+      <div className="flex gap-2 flex-wrap px-5 mb-6">
         {['Navratri2025', 'GujjuFood', 'DiasporaStories', 'DhoklaLovers', 'GujjuStartups'].map((tag, i) => (
           <span 
             key={tag}
-            className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all cursor-pointer border ${
-              i === 0 
-                ? 'bg-[rgba(232,137,42,0.12)] border-[rgba(232,137,42,0.4)] text-[var(--saffron-light)]' 
-                : 'bg-[var(--surface2)] border-[var(--border)] text-[var(--text2)] hover:border-[var(--border2)]'
-            }`}
+            className={`topic-chip ${i === 0 ? 'active' : ''}`}
           >
-            <span className="text-[var(--saffron)] mr-0.5">#</span>{tag}
+            <span className="hash">#</span>{tag}
           </span>
         ))}
       </div>

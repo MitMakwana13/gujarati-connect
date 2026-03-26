@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import BottomNav from '@/components/BottomNav';
-import { LogOut } from 'lucide-react';
+import { LogOut, MapPin, Briefcase, Award } from 'lucide-react';
 import { getInitials, supabase } from '@/lib/supabase';
 
 export default function ProfilePage() {
@@ -14,106 +13,90 @@ export default function ProfilePage() {
   if (!user || !profile) return null;
 
   return (
-    <main className="min-h-[100dvh] px-4 pt-6 pb-32 bg-[#0A0E19] text-white">
-      <section className="max-w-md mx-auto">
-
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold font-['Poppins'] tracking-tight">Your Identity</h1>
-          <button 
-            onClick={() => { signOut(); router.push('/'); }}
-            className="p-2 text-slate-400 hover:text-white bg-white/[0.04] rounded-xl hover:bg-white/[0.08] transition active:scale-95"
-          >
-            <LogOut size={18} />
-          </button>
-        </div>
-
-        <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-8 backdrop-blur-xl text-center shadow-[0_20px_60px_rgba(0,0,0,0.35)] relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-400/5 via-transparent to-transparent opacity-0 transition group-hover:opacity-100 pointer-events-none" />
-
-          {profile.photo_url ? (
-            <img src={profile.photo_url} alt="" className="w-24 h-24 mx-auto border-2 border-white/10 rounded-[28px] object-cover shadow-[0_10px_30px_rgba(0,0,0,0.4)] relative z-10" />
-          ) : (
-            <div className="w-24 h-24 mx-auto rounded-[28px] border-2 border-white/10 bg-[#0A0E19] shadow-[0_10px_30px_rgba(0,0,0,0.4)] flex items-center justify-center font-bold text-3xl text-slate-400 relative z-10">
-              {getInitials(profile.name)}
+    <div className="pb-12">
+      {/* Profile Hero */}
+      <div className="relative pt-6 px-5 mb-6">
+        <div className="absolute top-0 left-0 right-0 h-[140px] bg-gradient-to-br from-[var(--saffron)] to-[var(--saffron-deep)] opacity-10 rounded-b-[40px]" />
+        
+        <div className="relative flex flex-col items-center pt-8">
+          <div className="w-[100px] h-[100px] rounded-[30px] bg-gradient-to-br from-[var(--saffron)] to-[var(--saffron-dark)] p-[3px] shadow-2xl mb-4 relative">
+            <div className="w-full h-full bg-[var(--bg)] rounded-[27px] overflow-hidden flex items-center justify-center p-1">
+              {profile.photo_url ? (
+                <img src={profile.photo_url} alt="" className="w-full h-full rounded-[24px] object-cover" />
+              ) : (
+                <div className="w-full h-full rounded-[24px] bg-[var(--surface2)] flex items-center justify-center font-bold text-3xl text-[var(--saffron)] font-serif">
+                  {getInitials(profile.name)}
+                </div>
+              )}
             </div>
-          )}
-
-          <h2 className="text-[22px] font-semibold tracking-tight mt-5 font-['Poppins'] relative z-10">{profile.name}</h2>
-          <p className="text-slate-400 font-medium text-[15px] mt-1 relative z-10">{profile.profession || 'Professional'}</p>
-
-          <div className="flex justify-center gap-2 mt-5 relative z-10">
-            <span className="px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-[12px] font-medium tracking-wide text-slate-200">
-              {profile.native_city || 'Gujarat'}
-            </span>
-            <span className="px-3.5 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/20 text-[12px] font-semibold tracking-wide text-amber-100">
-              {profile.current_city || profile.current_country || 'Earth'}
-            </span>
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--teal)] rounded-[10px] border-[3px] border-[var(--bg)] flex items-center justify-center text-white text-[10px] font-bold shadow-lg">
+              ✓
+            </div>
+          </div>
+          
+          <h2 className="text-[24px] font-bold text-[var(--text)] font-serif mb-1">{profile.name}</h2>
+          <div className="flex items-center gap-2 text-[12px] text-[var(--text3)] font-medium uppercase tracking-[0.06em]">
+            <span>{profile.profession || 'Global Citizen'}</span>
+            <span className="opacity-30">•</span>
+            <span>{profile.native_city || 'Gujarat'} native</span>
           </div>
 
-          <button 
-            onClick={() => router.push('/profile/edit')}
-            className="mt-8 w-full bg-amber-400 py-3.5 rounded-[18px] font-semibold text-black transition hover:bg-amber-300 active:scale-95 shadow-[0_8px_25px_rgba(245,158,11,0.25)] relative z-10"
-          >
-            Edit Profile
-          </button>
-        </div>
-
-        {/* Setting toggles could be added here in future mvp stages */}
-        <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-           <div className="flex justify-between items-center">
-             <div className="font-medium text-[15px]">Privacy Mode</div>
-             <div className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${profile.privacy_mode ? 'bg-[#22c55e]' : 'bg-white/20'}`}>
-                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${profile.privacy_mode ? 'translate-x-6' : 'translate-x-0'}`} />
-             </div>
-           </div>
-           <p className="text-xs text-slate-400 mt-2">Hides your exact distance (fuzzed location within 500m area).</p>
-        </div>
-
-        {/* User Posts Section */}
-        <div className="mt-8">
-          <h3 className="text-xl font-semibold tracking-tight text-white mb-4 font-['Poppins']">Your Posts</h3>
-          <UserPosts userId={user.id} />
-        </div>
-
-      </section>
-      <BottomNav />
-    </main>
-  );
-}
-
-function UserPosts({ userId }: { userId: string }) {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadPosts() {
-      const { data } = await supabase
-        .from('post_feed')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
-      setPosts(data || []);
-      setLoading(false);
-    }
-    loadPosts();
-  }, [userId]);
-
-  if (loading) return <div className="text-white/50 text-sm text-center py-4">Loading posts...</div>;
-  if (posts.length === 0) return <div className="text-white/50 text-sm text-center py-4 glass-card">You haven't posted anything yet.</div>;
-
-  return (
-    <div className="space-y-4">
-      {posts.map(post => (
-        <div key={post.id} className="glass-card p-4">
-          <p className="text-white/90 text-sm mb-3 whitespace-pre-wrap">{post.content}</p>
-          <div className="flex gap-4 text-white/50 text-xs">
-            <span>❤️ {post.likes_count}</span>
-            <span>💬 {post.comments_count}</span>
+          <div className="mt-5 flex gap-2">
+            <button className="h-[42px] px-8 rounded-full bg-[var(--saffron)] text-white text-[13px] font-bold shadow-lg shadow-[rgba(232,137,42,0.25)] hover:bg-[var(--saffron-dark)] transition-all">
+              EDIT PROFILE
+            </button>
+            <button 
+              onClick={() => { signOut(); router.push('/'); }}
+              className="w-[42px] h-[42px] rounded-full bg-[var(--surface2)] border border-[var(--border)] flex items-center justify-center text-[18px] text-[var(--text3)] hover:text-white transition-all"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
-      ))}
+      </div>
+
+      {/* Profile Stats */}
+      <div className="flex gap-2.5 px-5 mb-8">
+        <div className="stat-card">
+          <div className="stat-num">1.2k</div>
+          <div className="stat-label">Network</div>
+        </div>
+        <div className="stat-card highlight">
+          <div className="stat-num">18</div>
+          <div className="stat-label">Contributions</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-num">4.9</div>
+          <div className="stat-label">Rating</div>
+        </div>
+      </div>
+
+      {/* Professional Info */}
+      <div className="sec-title px-5">Professional Info</div>
+      <div className="px-5 space-y-3 mb-8">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r2)] p-4 flex gap-4">
+          <div className="w-10 h-10 rounded-[12px] bg-[rgba(232,137,42,0.1)] flex items-center justify-center text-xl shrink-0">🎓</div>
+          <div>
+            <div className="text-[13px] font-bold text-[var(--text)] mb-0.5">Education</div>
+            <div className="text-[12px] text-[var(--text2)]">MBA, Indian Institute of Management</div>
+          </div>
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r2)] p-4 flex gap-4">
+          <div className="w-10 h-10 rounded-[12px] bg-[rgba(26,174,163,0.1)] flex items-center justify-center text-xl shrink-0">💼</div>
+          <div>
+            <div className="text-[13px] font-bold text-[var(--text)] mb-0.5">Work History</div>
+            <div className="text-[12px] text-[var(--text2)]">Senior Partner at Diamond Intl Group</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Skills */}
+      <div className="sec-title px-5">Key Skills</div>
+      <div className="flex flex-wrap gap-2 px-5 mb-30">
+        {['Strategic Growth', 'International Trade', 'Public Speaking', 'Mentoring', 'Investment Analysis'].map(skill => (
+          <span key={skill} className="skill-tag">{skill}</span>
+        ))}
+      </div>
     </div>
   );
 }
