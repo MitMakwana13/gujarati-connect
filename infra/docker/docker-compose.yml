@@ -1,0 +1,96 @@
+version: '3.9'
+
+# ============================================================
+# Gujarati Global — Local Development Environment
+# Services: PostgreSQL 16, Redis 7, Azurite (queue emulator)
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gg_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gg_user
+      POSTGRES_PASSWORD: gg_dev_password
+      POSTGRES_DB: gujarati_global
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gg_user -d gujarati_global']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gg_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: gg_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gg_network
+
+  # Azure Service Bus emulator using Azurite (local dev only)
+  # In local dev we use BullMQ + Redis as a simpler queue substitute
+  # For production parity testing, use the Azure Service Bus emulator Docker image
+  redis_queue:
+    image: redis:7-alpine
+    container_name: gg_redis_queue
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_queue_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gg_network
+
+  # Optional: pgAdmin for local DB inspection
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: gg_pgadmin
+    restart: unless-stopped
+    profiles:
+      - tools
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@gujaratiglobal.com
+      PGADMIN_DEFAULT_PASSWORD: devpassword
+    ports:
+      - '5050:80'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gg_network
+
+volumes:
+  postgres_data:
+    name: gg_postgres_data
+  redis_data:
+    name: gg_redis_data
+  redis_queue_data:
+    name: gg_redis_queue_data
+
+networks:
+  gg_network:
+    name: gg_network
+    driver: bridge

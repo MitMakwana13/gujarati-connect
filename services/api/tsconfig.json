@@ -1,0 +1,12 @@
+{
+  "extends": "@gujarati-global/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": false,
+    "module": "CommonJS",
+    "moduleResolution": "node"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

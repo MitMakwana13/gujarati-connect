@@ -1,0 +1,36 @@
+version: '3.9'
+
+# ============================================================
+# Gujarati Global — Test Environment
+# Isolated containers for integration and e2e tests
+# ============================================================
+
+services:
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: gg_postgres_test
+    environment:
+      POSTGRES_USER: gg_test_user
+      POSTGRES_PASSWORD: gg_test_password
+      POSTGRES_DB: gujarati_global_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data  # in-memory for speed
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gg_test_user -d gujarati_global_test']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis_test:
+    image: redis:7-alpine
+    container_name: gg_redis_test
+    ports:
+      - '6381:6379'
+    command: redis-server --save ''  # disable persistence for speed
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
