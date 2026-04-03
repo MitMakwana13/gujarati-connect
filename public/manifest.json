@@ -1,0 +1,16 @@
+{
+  "name": "Gujarati Connect",
+  "short_name": "GujConnect",
+  "description": "Find Gujaratis near you, anywhere in the world.",
+  "start_url": "/nearby",
+  "display": "standalone",
+  "background_color": "#0A0E19",
+  "theme_color": "#F59E0B",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["social", "lifestyle"],
+  "lang": "en"
+}

@@ -1,0 +1,76 @@
+'use client';
+
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import toast from 'react-hot-toast';
+
+interface Props { onClose: () => void; }
+
+export default function AuthModal({ onClose }: Props) {
+  const [loading, setLoading] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/nearby` },
+    });
+    if (error) { toast.error(error.message); setLoading(false); }
+  };
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[100] flex items-end justify-center px-4 pb-4 bg-black/60 backdrop-blur-md" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <motion.div 
+          initial={{ y: '100%' }} 
+          animate={{ y: 0 }} 
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className="w-full max-w-sm bg-[var(--surface)] border border-[var(--border3)] rounded-[40px] p-8 shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[var(--saffron)] via-[var(--gold)] to-[var(--teal)] opacity-50" />
+          
+          <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-xl bg-[var(--surface2)] border border-[var(--border)] text-[var(--text3)] hover:text-[var(--text)] transition-all">
+            <X size={18} />
+          </button>
+
+          <div className="mb-10 mt-4">
+            <div className="w-[72px] h-[72px] bg-gradient-to-br from-[var(--saffron)] via-[var(--saffron-dark)] to-[var(--saffron-deep)] rounded-[22px] flex items-center justify-center text-4xl shadow-[0_8px_30px_rgba(232,137,42,0.4)] mb-8 relative">
+              <div className="absolute inset-0 bg-white/10 rounded-[22px]" />
+              <span className="relative z-10">🪔</span>
+            </div>
+            <h2 className="text-3xl font-bold font-serif text-[var(--text)] leading-[1.15] tracking-tight">
+              Welcome to<br />GujaratiConnect
+            </h2>
+            <p className="text-[13px] text-[var(--text3)] mt-4 leading-relaxed font-medium">
+              Join the global network of 2.4 million Gujaratis spanning 186 countries.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <button 
+              className="w-full bg-white text-black font-bold h-[58px] rounded-[18px] flex items-center justify-center gap-3 shadow-xl active:scale-[0.97] transition-all hover:bg-slate-50" 
+              onClick={handleGoogleLogin} 
+              disabled={loading}
+            >
+              {loading ? <Loader2 size={20} className="animate-spin" /> : (
+                <svg width="22" height="22" viewBox="0 0 48 48">
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+              )}
+              {loading ? 'CONNECTING...' : 'CONTINUE WITH GOOGLE'}
+            </button>
+            <p className="text-[10px] text-[var(--text4)] text-center py-4 uppercase tracking-[0.15em] font-bold">
+              Secure · Verified · Community
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}

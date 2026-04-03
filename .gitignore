@@ -1,17 +1,23 @@
 # Dependencies
 node_modules/
 .pnp
-.pnp.js
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
 # Build outputs
 dist/
 build/
 .turbo/
 .next/
-out/
+/out/
 
 # Environment files
 .env
+.env*
 .env.local
 .env.development.local
 .env.test.local
@@ -27,6 +33,7 @@ yarn-error.log*
 
 # OS files
 .DS_Store
+*.pem
 Thumbs.db
 
 # IDE
@@ -35,8 +42,19 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+next-env.d.ts
 typecheck.log
 
 # Coverage
 coverage/
 .nyc_output/
+
+# Vercel
+.vercel
+
+# Supabase
+supabase/.temp/
+
+# Misc
+AGENTS.md
+CLAUDE.md
