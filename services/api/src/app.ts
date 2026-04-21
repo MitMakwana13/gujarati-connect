@@ -184,7 +184,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── API Routes ────────────────────────────────────────────
   const API_PREFIX = '/api/v1';
 
-  await app.register(csrfRoutes,         { prefix: '/csrf-token' });
+  await app.register(csrfRoutes,         { prefix: `${API_PREFIX}/csrf-token` });
   await app.register(authRoutes,         { prefix: `${API_PREFIX}/auth` });
   await app.register(userRoutes,         { prefix: `${API_PREFIX}/users` });
   await app.register(communityRoutes,    { prefix: `${API_PREFIX}/communities` });

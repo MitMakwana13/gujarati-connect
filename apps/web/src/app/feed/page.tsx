@@ -76,10 +76,6 @@ export default function FeedPage() {
     if (!isLoading && !user) router.push('/auth/login');
   }, [user, isLoading, router]);
 
-  useEffect(() => {
-    if (!isLoading && !user) router.push('/auth/login');
-  }, [user, isLoading, router]);
-
   if (isLoading || !user) return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-base)' }}>
       <MotionDiv animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ fontSize: 28 }}>⏳</MotionDiv>

@@ -31,9 +31,22 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
       const cacheKey = `feed:${req.userId}`;
 
       if (isDefaultFeed) {
-        const cached = await app.redis.get(cacheKey);
-        if (cached) {
-          return reply.send(JSON.parse(cached));
+        // Worker writes feed:{userId} as a sorted set (zadd). Read it correctly.
+        const postIds = await app.redis.zrevrange(cacheKey, 0, query.limit - 1);
+        if (postIds.length > 0) {
+          const cachedRows = await app.db.query<Record<string, unknown>>(
+            `SELECT p.id, p.content_type, p.body, p.media_urls, p.like_count, p.comment_count,
+                    p.created_at, p.author_id, pr.display_name AS author_display_name,
+                    pr.avatar_url AS author_avatar_url
+             FROM posts p JOIN profiles pr ON pr.user_id = p.author_id
+             WHERE p.id = ANY($1::uuid[]) AND p.deleted_at IS NULL
+               AND p.moderation_status = 'published'
+             ORDER BY array_position($1::uuid[], p.id)`,
+            [postIds],
+          );
+          if (cachedRows.rows.length > 0) {
+            return reply.send({ data: cachedRows.rows, meta: { nextCursor: null, hasMore: false } });
+          }
         }
       }
 
@@ -96,10 +109,6 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
           hasMore: rows.rows.length > query.limit,
         },
       };
-
-      if (isDefaultFeed) {
-        await app.redis.setex(cacheKey, 300, JSON.stringify(responsePayload));
-      }
 
       return reply.send(responsePayload);
     },
@@ -196,8 +205,8 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Invalidate the author's own feed cache
-      await app.redis.del(`feed:${req.userId}`);
+      // Add to the author's feed sorted set so it appears immediately
+      await app.redis.zadd(`feed:${req.userId}`, Date.now(), postId);
 
       app.log.info({ postId, userId: req.userId, priority: priority.level }, '[posts] Post created');
 
