@@ -31,21 +31,30 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
       const cacheKey = `feed:${req.userId}`;
 
       if (isDefaultFeed) {
-        // Worker writes feed:{userId} as a sorted set (zadd). Read it correctly.
+        // The fan-out worker writes feed:{userId} as a Redis sorted set (zadd, score = unix timestamp).
+        // Read newest-first post IDs from it, then hydrate from Postgres.
         const postIds = await app.redis.zrevrange(cacheKey, 0, query.limit - 1);
         if (postIds.length > 0) {
           const cachedRows = await app.db.query<Record<string, unknown>>(
-            `SELECT p.id, p.content_type, p.body, p.media_urls, p.like_count, p.comment_count,
-                    p.created_at, p.author_id, pr.display_name AS author_display_name,
-                    pr.avatar_url AS author_avatar_url
-             FROM posts p JOIN profiles pr ON pr.user_id = p.author_id
-             WHERE p.id = ANY($1::uuid[]) AND p.deleted_at IS NULL
+            `SELECT p.id, p.content_type, p.body, p.media_urls, p.link_url, p.link_preview,
+                    p.like_count, p.comment_count, p.share_count, p.is_pinned, p.created_at,
+                    p.group_id, p.community_id, p.author_id,
+                    pr.display_name AS author_display_name, pr.avatar_url AS author_avatar_url,
+                    r.reaction AS my_reaction
+             FROM posts p
+             JOIN profiles pr ON pr.user_id = p.author_id
+             LEFT JOIN reactions r ON r.target_type = 'post' AND r.target_id = p.id AND r.user_id = $2
+             WHERE p.id = ANY($1::uuid[])
+               AND p.deleted_at IS NULL
                AND p.moderation_status = 'published'
-             ORDER BY array_position($1::uuid[], p.id)`,
-            [postIds],
+             ORDER BY p.created_at DESC`,
+            [postIds, req.userId],
           );
           if (cachedRows.rows.length > 0) {
-            return reply.send({ data: cachedRows.rows, meta: { nextCursor: null, hasMore: false } });
+            return reply.send({
+              data: cachedRows.rows,
+              meta: { nextCursor: null, hasMore: false, source: 'cache' },
+            });
           }
         }
       }
@@ -109,6 +118,10 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
           hasMore: rows.rows.length > query.limit,
         },
       };
+
+      // Note: feed cache population is handled by the fan-out worker (services/worker).
+      // The worker writes post IDs to a Redis sorted set (feed:{userId}).
+      // We do not write here to avoid overwriting the sorted set with a plain string.
 
       return reply.send(responsePayload);
     },
@@ -205,8 +218,9 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Add to the author's feed sorted set so it appears immediately
-      await app.redis.zadd(`feed:${req.userId}`, Date.now(), postId);
+      // Optimistically add this post to the author's own feed sorted set.
+      // The fan-out worker handles distributing to followers.
+      await app.redis.zadd(`feed:${req.userId}`, Date.now() / 1000, postId);
 
       app.log.info({ postId, userId: req.userId, priority: priority.level }, '[posts] Post created');
 

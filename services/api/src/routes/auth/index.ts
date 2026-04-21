@@ -263,37 +263,28 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       schema: { tags: ['auth'], summary: 'Logout and invalidate refresh token' },
     },
     async (req, reply) => {
-      const { refreshToken } = (req.body as { refreshToken?: string }) ?? {};
-      if (!refreshToken) {
-        return reply.status(400).send({
-          errors: [{ code: 'VALIDATION_ERROR', message: 'refreshToken is required' }],
-        });
+      const { refreshToken } = (req.body as { refreshToken?: string });
+
+      if (refreshToken) {
+        try {
+          const payload = await app.verifyRefreshToken(refreshToken);
+          if (payload.jti) {
+            // Insert into blocklist — auth plugin checks this on every authenticate call
+            await app.db.query(
+              `INSERT INTO revoked_tokens (jti, user_id, expires_at)
+               VALUES ($1, $2, to_timestamp($3))
+               ON CONFLICT (jti) DO NOTHING`,
+              [payload.jti, req.userId, payload.exp ?? (Date.now() / 1000 + 86400)],
+            );
+            // Prune expired entries to keep the table lean
+            await app.db.query('DELETE FROM revoked_tokens WHERE expires_at < NOW()');
+          }
+        } catch {
+          // If token is already invalid/expired, logout silently — that is fine
+        }
       }
 
-      let payload;
-      try {
-        payload = await app.verifyRefreshToken(refreshToken);
-      } catch {
-        // Token already expired or revoked — still a successful logout
-        req.log.info({ userId: req.userId }, '[auth] Logout with invalid/expired token');
-        return reply.send({ data: { message: 'Logged out successfully' } });
-      }
-
-      // Insert jti into revoked_tokens blocklist
-      if (payload.jti) {
-        const expiresAt = payload.exp ? new Date(payload.exp * 1000) : new Date(Date.now() + 7 * 86400000);
-        await app.db.query(
-          `INSERT INTO revoked_tokens (jti, user_id, revoked_at, expires_at)
-           VALUES ($1, $2, NOW(), $3)
-           ON CONFLICT (jti) DO NOTHING`,
-          [payload.jti, req.userId, expiresAt],
-        );
-
-        // Prune expired rows to prevent table bloat
-        await app.db.query('DELETE FROM revoked_tokens WHERE expires_at < NOW()');
-      }
-
-      req.log.info({ userId: req.userId }, '[auth] User logged out, token revoked');
+      req.log.info({ userId: req.userId }, '[auth] User logged out');
       return reply.send({ data: { message: 'Logged out successfully' } });
     },
   );
