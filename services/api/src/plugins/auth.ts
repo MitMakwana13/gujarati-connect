@@ -15,6 +15,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
+import crypto from 'node:crypto';
 import { config } from '../config/index.js';
 import type { UserRole, UserRoleLiteral } from '@gujarati-global/types';
 
@@ -73,21 +74,24 @@ export const authPlugin = fp(
       'generateTokens',
       async (userId: string, email: string, role: UserRoleLiteral) => {
         const now = Math.floor(Date.now() / 1000);
+        const jti = crypto.randomUUID();
 
         const accessToken = await new SignJWT({
           email,
           role,
           type: 'access',
-        } satisfies Omit<JwtAccessPayload, 'sub' | 'iat' | 'exp'>)
+        } satisfies Omit<JwtAccessPayload, 'sub' | 'iat' | 'exp' | 'jti'>)
           .setProtectedHeader({ alg: 'HS256' })
           .setSubject(userId)
+          .setJti(jti)
           .setIssuedAt(now)
           .setExpirationTime(now + accessExpirySeconds)
           .sign(accessSecret);
 
-        const refreshToken = await new SignJWT({ type: 'refresh' } satisfies Omit<JwtRefreshPayload, 'sub' | 'iat' | 'exp'>)
+        const refreshToken = await new SignJWT({ type: 'refresh' } satisfies Omit<JwtRefreshPayload, 'sub' | 'iat' | 'exp' | 'jti'>)
           .setProtectedHeader({ alg: 'HS256' })
           .setSubject(userId)
+          .setJti(jti)
           .setIssuedAt(now)
           .setExpirationTime(now + refreshExpirySeconds)
           .sign(refreshSecret);
@@ -105,6 +109,17 @@ export const authPlugin = fp(
       if (payload.type !== 'refresh') {
         throw new Error('Invalid token type');
       }
+
+      if (payload.jti) {
+        const revoked = await app.db.query(
+          'SELECT 1 FROM revoked_tokens WHERE jti = $1',
+          [payload.jti]
+        );
+        if (revoked.rows.length > 0) {
+          throw new Error('Token has been revoked');
+        }
+      }
+
       return payload;
     });
 
@@ -130,6 +145,18 @@ export const authPlugin = fp(
             return reply.status(401).send({
               errors: [{ code: 'UNAUTHORIZED', message: 'Invalid token type' }],
             });
+          }
+
+          if (payload.jti) {
+            const revoked = await app.db.query(
+              'SELECT 1 FROM revoked_tokens WHERE jti = $1',
+              [payload.jti]
+            );
+            if (revoked.rows.length > 0) {
+              return reply.status(401).send({
+                errors: [{ code: 'UNAUTHORIZED', message: 'Token has been revoked' }],
+              });
+            }
           }
 
           // Check user is still active (block suspended/banned users immediately)

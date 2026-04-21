@@ -21,7 +21,7 @@ export const redisPlugin = fp(
     const redis = new Redis(config.redis.url, {
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
-      lazyConnect: false,
+      lazyConnect: true, // Use lazyConnect to prevent "already connecting" errors
       retryStrategy: (times: number) => {
         if (times > 5) return null; // stop retrying
         return Math.min(times * 100, 3000);
@@ -40,9 +40,14 @@ export const redisPlugin = fp(
       app.log.warn('[redis] Reconnecting to Redis...');
     });
 
-    // Verify connectivity
-    await redis.ping();
-    app.log.info('[redis] Redis connection healthy');
+    // Explicitly connect and verify connectivity
+    try {
+      await redis.connect();
+      await redis.ping();
+      app.log.info('[redis] Redis connection healthy');
+    } catch (err) {
+      app.log.error({ err }, '[redis] Initial connection failed');
+    }
 
     app.decorate('redis', redis);
 

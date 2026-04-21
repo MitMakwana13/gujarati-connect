@@ -1,11 +1,44 @@
+let cachedCsrfToken: string | null = null;
+
+async function getCsrfToken(): Promise<string> {
+  if (cachedCsrfToken) return cachedCsrfToken;
+  const res = await fetch('/api/backend/csrf-token', { credentials: 'include' });
+  const data = await res.json();
+  cachedCsrfToken = data.csrfToken;
+  return data.csrfToken;
+}
+
 export const fetcher = async (url: string, options?: RequestInit) => {
-  const res = await fetch(`/api/backend${url}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+  const method = options?.method?.toUpperCase() || 'GET';
+  const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    ...options?.headers,
   });
+
+  if (isMutating) {
+    const token = await getCsrfToken();
+    headers.set('x-csrf-token', token);
+  }
+
+  let res = await fetch(`/api/backend${url}`, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
+
+  if (res.status === 403 && isMutating) {
+    // Retry once with a fresh token
+    cachedCsrfToken = null;
+    const freshToken = await getCsrfToken();
+    headers.set('x-csrf-token', freshToken);
+    res = await fetch(`/api/backend${url}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+  }
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await res.json() : await res.text();

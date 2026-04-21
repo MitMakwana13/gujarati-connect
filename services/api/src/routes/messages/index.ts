@@ -87,8 +87,11 @@ export default async function messageRoutes(app: FastifyInstance): Promise<void>
     const body = sendMessageSchema.parse(req.body);
 
     // Verify active participant
-    const participation = await app.db.query<{ status: string }>(
-      'SELECT status FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+    const participation = await app.db.query<{ status: string; display_name: string }>(
+      `SELECT cp.status, p.display_name 
+       FROM conversation_participants cp
+       JOIN profiles p ON p.user_id = cp.user_id
+       WHERE cp.conversation_id = $1 AND cp.user_id = $2`,
       [id, req.userId],
     );
     if (!participation.rows[0] || participation.rows[0].status !== 'active') {

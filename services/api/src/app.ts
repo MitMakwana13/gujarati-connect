@@ -13,6 +13,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCsrfProtection from '@fastify/csrf-protection';
+import cookie from '@fastify/cookie';
 
 import { config } from './config/index.js';
 import { dbPlugin } from './plugins/db.js';
@@ -36,6 +37,7 @@ import searchRoutes from './routes/search/index.js';
 import mediaRoutes from './routes/media/index.js';
 import reportRoutes from './routes/reports/index.js';
 import adminRoutes from './routes/admin/index.js';
+import csrfRoutes from './routes/csrf.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -153,6 +155,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     options: { maxPayload: 1048576 } // 1MB
   });
   
+  await app.register(cookie, { secret: process.env.COOKIE_SECRET });
   await app.register(fastifyCsrfProtection, {
     cookieOpts: { signed: true, httpOnly: true, secure: config.env === 'production' }
   });
@@ -181,6 +184,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── API Routes ────────────────────────────────────────────
   const API_PREFIX = '/api/v1';
 
+  await app.register(csrfRoutes,         { prefix: '/csrf-token' });
   await app.register(authRoutes,         { prefix: `${API_PREFIX}/auth` });
   await app.register(userRoutes,         { prefix: `${API_PREFIX}/users` });
   await app.register(communityRoutes,    { prefix: `${API_PREFIX}/communities` });

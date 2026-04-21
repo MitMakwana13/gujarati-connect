@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { SocketStream } from '@fastify/websocket';
+import type { WebSocket } from '@fastify/websocket';
 import { AppError } from '../../plugins/error-handler.js';
 
 export default async function messageWsRoutes(app: FastifyInstance): Promise<void> {
@@ -8,7 +8,26 @@ export default async function messageWsRoutes(app: FastifyInstance): Promise<voi
   const subClient = app.redis.duplicate();
   await subClient.connect();
 
-  app.get('/conversations/:id/stream', { websocket: true, onRequest: [app.authenticate] }, async (connection: SocketStream, req) => {
+  subClient.on('error', (err) => {
+    app.log.error(err, '[ws] Redis subscriber error');
+  });
+
+  const listeners = new Map<string, Set<(message: string) => void>>();
+
+  subClient.on('message', (channel, message) => {
+    try {
+      const channelListeners = listeners.get(channel);
+      if (channelListeners) {
+        for (const listener of channelListeners) {
+          listener(message);
+        }
+      }
+    } catch (err) {
+      app.log.error(err, '[ws] Error in global message handler');
+    }
+  });
+
+  app.get('/conversations/:id/stream', { websocket: true, onRequest: [app.authenticate] }, async (connection: WebSocket, req) => {
     const { id: conversationId } = req.params as { id: string };
     const userId = req.userId!;
 
@@ -19,8 +38,8 @@ export default async function messageWsRoutes(app: FastifyInstance): Promise<voi
     );
     
     if (!participation.rows[0] || participation.rows[0].status !== 'active') {
-      connection.socket.send(JSON.stringify({ type: 'error', message: 'Not authorized for this conversation' }));
-      return connection.socket.close(1008, 'Forbidden');
+      connection.send(JSON.stringify({ type: 'error', message: 'Not authorized for this conversation' }));
+      return connection.close(1008, 'Forbidden');
     }
 
     // Update last_seen in DB
@@ -37,14 +56,18 @@ export default async function messageWsRoutes(app: FastifyInstance): Promise<voi
       try {
         const payload = JSON.parse(message);
         if (payload.senderId !== userId) {
-          connection.socket.send(message);
+          connection.send(message);
         }
       } catch (e) {
         // Ignore parse error
       }
     };
 
-    await subClient.subscribe(channel, messageHandler);
+    if (!listeners.has(channel)) {
+      listeners.set(channel, new Set());
+      await subClient.subscribe(channel);
+    }
+    listeners.get(channel)!.add(messageHandler);
 
     // Broadcast presence join
     await app.redis.publish(channel, JSON.stringify({
@@ -54,7 +77,7 @@ export default async function messageWsRoutes(app: FastifyInstance): Promise<voi
     }));
 
     // 3. Handle incoming WS messages from the client
-    connection.socket.on('message', async (message: Buffer) => {
+    connection.on('message', async (message: Buffer) => {
       try {
         const data = JSON.parse(message.toString());
 
@@ -92,8 +115,16 @@ export default async function messageWsRoutes(app: FastifyInstance): Promise<voi
     });
 
     // 4. Cleanup on disconnect
-    connection.socket.on('close', async () => {
-      await subClient.unsubscribe(channel, messageHandler);
+    connection.on('close', async () => {
+      const channelListeners = listeners.get(channel);
+      if (channelListeners) {
+        channelListeners.delete(messageHandler);
+        if (channelListeners.size === 0) {
+          listeners.delete(channel);
+          await subClient.unsubscribe(channel);
+        }
+      }
+
       await app.redis.publish(channel, JSON.stringify({
         type: 'presence',
         userId,

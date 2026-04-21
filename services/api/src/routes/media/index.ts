@@ -9,11 +9,11 @@ import type { FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 import { config } from '../../config/index.js';
 import { AppError } from '../../plugins/error-handler.js';
-// TODO(infra): Integrate exact Azure Blob Storage SDK.
-// For Phase 1 dev out of the box, we will simulate the upload and just return a fake URL
-// or local path, but we wire up the multipart parsing and validation correctly.
+
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
 export default async function mediaRoutes(app: FastifyInstance): Promise<void> {
   // Register multipart plugin just for this router or globally
@@ -50,24 +50,21 @@ export default async function mediaRoutes(app: FastifyInstance): Promise<void> {
         const ext = path.extname(part.filename).toLowerCase() || '.bin';
         const blobName = `${req.userId}/${Date.now()}-${randomUUID()}${ext}`;
 
-        // ── AZURE BLOB STORAGE SIMULATION ──
-        // In production:
-        // const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-        // await blockBlobClient.uploadStream(part.file, undefined, undefined, {
-        //   blobHTTPHeaders: { blobContentType: part.mimetype }
-        // });
-        // const cdnUrl = `${config.media.cdnBaseUrl}/${blobName}`;
+        // ── SUPABASE STORAGE ──
+        const { data, error } = await supabase.storage
+          .from('media')
+          .upload(blobName, await part.toBuffer(), {
+            contentType: part.mimetype,
+            upsert: false,
+          });
 
-        // ── DEV SIMULATION ──
-        // We'll drain the stream to prevent memory leaks
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _chunk of part.file) {
-          // draining
+        if (error) {
+          throw new AppError('UPLOAD_FAILED', `Failed to upload file: ${error.message}`, 500);
         }
 
-        const cdnUrl = `${config.media.cdnBaseUrl}/${blobName}`;
-        app.log.info({ userId: req.userId, blobName, mimetype: part.mimetype }, '[media] File uploaded to Azure');
-        uploadedUrls.push(cdnUrl);
+        const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(blobName);
+        app.log.info({ userId: req.userId, blobName, mimetype: part.mimetype }, '[media] File uploaded to Supabase');
+        uploadedUrls.push(publicUrl);
       }
 
       if (uploadedUrls.length === 0) {

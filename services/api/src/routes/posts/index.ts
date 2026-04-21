@@ -26,6 +26,17 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const query = postListQuerySchema.parse(req.query);
 
+      // Only use cache for the initial default feed load (no cursor or filters)
+      const isDefaultFeed = !query.groupId && !query.communityId && !query.authorId && !query.cursor;
+      const cacheKey = `feed:${req.userId}`;
+
+      if (isDefaultFeed) {
+        const cached = await app.redis.get(cacheKey);
+        if (cached) {
+          return reply.send(JSON.parse(cached));
+        }
+      }
+
       const conditions = [
         `p.deleted_at IS NULL`,
         `p.moderation_status = 'published'`,
@@ -78,13 +89,19 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
       );
 
       const items = rows.rows.slice(0, query.limit);
-      return reply.send({
+      const responsePayload = {
         data: items,
         meta: {
           nextCursor: rows.rows.length > query.limit ? (items[items.length - 1]?.['created_at'] as string) : null,
           hasMore: rows.rows.length > query.limit,
         },
-      });
+      };
+
+      if (isDefaultFeed) {
+        await app.redis.setex(cacheKey, 300, JSON.stringify(responsePayload));
+      }
+
+      return reply.send(responsePayload);
     },
   );
 
@@ -178,6 +195,9 @@ export default async function postRoutes(app: FastifyInstance): Promise<void> {
           dedupKey: postId,
         });
       }
+
+      // Invalidate the author's own feed cache
+      await app.redis.del(`feed:${req.userId}`);
 
       app.log.info({ postId, userId: req.userId, priority: priority.level }, '[posts] Post created');
 

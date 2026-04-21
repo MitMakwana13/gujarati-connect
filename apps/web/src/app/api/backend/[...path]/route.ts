@@ -5,23 +5,28 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000/api/v1
 
 const secret = process.env.NEXTAUTH_SECRET || "fallback-secret-for-dev-only-gg";
 
-export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const params = await context.params;
   return proxyRequest(req, params.path);
 }
 
-export async function POST(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function POST(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const params = await context.params;
   return proxyRequest(req, params.path);
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const params = await context.params;
   return proxyRequest(req, params.path);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function DELETE(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const params = await context.params;
   return proxyRequest(req, params.path);
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const params = await context.params;
   return proxyRequest(req, params.path);
 }
 

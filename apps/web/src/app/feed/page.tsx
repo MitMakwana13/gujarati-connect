@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, useReducedMotion } from 'framer-motion';
+import dynamic from 'next/dynamic';
+
+const MotionDiv = dynamic(() => import('framer-motion').then(mod => mod.motion.div), { ssr: false });
+const MotionA = dynamic(() => import('framer-motion').then(mod => mod.motion.a), { ssr: false });
+const MotionButton = dynamic(() => import('framer-motion').then(mod => mod.motion.button), { ssr: false });
+const MotionArticle = dynamic(() => import('framer-motion').then(mod => mod.motion.article), { ssr: false });
+const MotionSpan = dynamic(() => import('framer-motion').then(mod => mod.motion.span), { ssr: false });
 import { useAuth } from '@/lib/auth-context';
 import { usePosts, useToggleLike, useCreatePost } from '@/hooks/usePosts';
 import AppNav from '@/components/AppNav';
@@ -53,12 +60,12 @@ const SIDEBAR_LINKS = [
 export default function FeedPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
-  const reduced = useReducedMotion();
+  const isReduced = useReducedMotion();
   const { data: postsData, isLoading: postsLoading } = usePosts();
   const toggleLikeMutation = useToggleLike();
   const createPostMutation = useCreatePost();
   
-  const posts = postsData || [];
+  const posts: any[] = postsData || [];
   
   const [groups, setGroups] = useState(SUGGESTED_GROUPS);
   const [composeText, setComposeText] = useState('');
@@ -75,7 +82,7 @@ export default function FeedPage() {
 
   if (isLoading || !user) return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-base)' }}>
-      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ fontSize: 28 }}>⏳</motion.div>
+      <MotionDiv animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ fontSize: 28 }}>⏳</MotionDiv>
     </div>
   );
 
@@ -103,8 +110,8 @@ export default function FeedPage() {
     });
   }
 
-  const staggerVariants = reduced ? reduced.stagger : stagger.normal;
-  const itemVariants = reduced ? reduced.fadeUp : fadeUp;
+  const staggerVariants = isReduced ? reduced.stagger : stagger;
+  const itemVariants = isReduced ? reduced.fadeUp : fadeUp;
 
   return (
     <div>
@@ -113,22 +120,22 @@ export default function FeedPage() {
         {/* Left sidebar */}
         <aside className="sidebar">
           {SIDEBAR_LINKS.map(item => (
-            <motion.a
+            <MotionA
               key={item.href}
               href={item.href}
               className={`sidebar-item${item.href === '/feed' ? ' active' : ''}`}
-              whileHover={reduced ? undefined : { x: 4 }}
+              whileHover={isReduced ? undefined : { x: 4 }}
               transition={{ duration: 0.15 }}
             >
               {item.href === '/feed' && (
-                <motion.div
+                <MotionDiv
                   layoutId="sidebar-pill"
                   style={{ position: 'absolute', inset: 0, background: 'var(--bg-glass-hover)', borderRadius: 'var(--r-md)', zIndex: -1 }}
                 />
               )}
               <span className="icon">{item.icon}</span>
               {item.label}
-            </motion.a>
+            </MotionA>
           ))}
           <div className="divider" style={{ margin: '8px 0' }} />
           <div style={{ padding: '8px 14px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
@@ -140,10 +147,10 @@ export default function FeedPage() {
         {/* Feed column */}
         <main style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Compose */}
-          <motion.div
+          <MotionDiv
             className="card"
             style={{ padding: 20 }}
-            variants={reduced ? undefined : fadeUp}
+            variants={isReduced ? undefined : fadeUp}
             initial="hidden"
             animate="visible"
           >
@@ -174,7 +181,7 @@ export default function FeedPage() {
 
               <AnimatePresence>
                 {(composeFocused || composeText) && (
-                  <motion.div
+                  <MotionDiv
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
@@ -182,12 +189,12 @@ export default function FeedPage() {
                     style={{ overflow: 'hidden' }}
                   >
                     <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
-                      <motion.button type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); }}>Cancel</motion.button>
-                      <motion.button id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={!composeText.trim() || createPostMutation.isPending}>
+                      <MotionButton type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); }}>Cancel</MotionButton>
+                      <MotionButton id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={!composeText.trim() || createPostMutation.isPending}>
                         {createPostMutation.isPending ? 'Posting…' : 'Post'}
-                      </motion.button>
+                      </MotionButton>
                     </div>
-                  </motion.div>
+                  </MotionDiv>
                 )}
               </AnimatePresence>
 
@@ -199,7 +206,7 @@ export default function FeedPage() {
                 </div>
               )}
             </form>
-          </motion.div>
+          </MotionDiv>
 
           {/* Posts */}
           {postsLoading ? (
@@ -207,7 +214,7 @@ export default function FeedPage() {
           ) : posts.length === 0 ? (
             <EmptyState icon="✨" title="Your feed is empty" description="Follow some communities and connect with people to see their posts here." action={{ label: 'Discover people', onClick: () => router.push('/discover') }} />
           ) : (
-            <motion.div
+            <MotionDiv
               className="feed"
               variants={staggerVariants}
               initial="hidden"
@@ -215,13 +222,13 @@ export default function FeedPage() {
             >
               <AnimatePresence>
                 {posts.map(post => (
-                  <motion.article
+                  <MotionArticle
                     key={post.id}
                     id={`post-${post.id}`}
                     className="card post-card"
                     variants={itemVariants}
                     layout
-                    whileHover={reduced ? undefined : cardHover.hover}
+                    whileHover={isReduced ? undefined : cardHover.hover}
                     initial="hidden"
                     animate="visible"
                     exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.15 } }}
@@ -246,13 +253,13 @@ export default function FeedPage() {
 
                     {post.tags.length > 0 && (
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                        {post.tags.map(tag => <span key={tag} className="badge badge-indigo" style={{ fontSize: 11 }}>{tag}</span>)}
+                        {post.tags.map((tag: string) => <span key={tag} className="badge badge-indigo" style={{ fontSize: 11 }}>{tag}</span>)}
                       </div>
                     )}
 
                     <div className="divider" style={{ marginBottom: 10 }} />
                     <div className="post-actions">
-                      <motion.button
+                      <MotionButton
                         id={`like-${post.id}`}
                         className="btn btn-ghost btn-sm"
                         onClick={() => toggleLike(post.id, post.liked)}
@@ -260,31 +267,31 @@ export default function FeedPage() {
                         style={{ color: post.liked ? 'var(--brand-saffron)' : 'var(--text-secondary)' }}
                       >
                         <AnimatePresence mode="wait">
-                          <motion.span key={post.liked ? 'liked' : 'notliked'} variants={scalePop} initial="hidden" animate="visible">
+                          <MotionSpan key={post.liked ? 'liked' : 'notliked'} variants={scalePop} initial="hidden" animate="visible">
                             {post.liked ? '👍' : '👍'}
-                          </motion.span>
+                          </MotionSpan>
                         </AnimatePresence>
                         {post.liked ? 'Liked' : 'Like'}
                         <span style={{ color: 'var(--text-muted)' }}>{post.likes}</span>
-                      </motion.button>
-                      <motion.button id={`comment-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap}>
+                      </MotionButton>
+                      <MotionButton id={`comment-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap}>
                         💬 Comment <span style={{ color: 'var(--text-muted)' }}>{post.comments}</span>
-                      </motion.button>
-                      <motion.button id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap}>
+                      </MotionButton>
+                      <MotionButton id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap}>
                         ↗ Share
-                      </motion.button>
+                      </MotionButton>
                     </div>
-                  </motion.article>
+                  </MotionArticle>
                 ))}
               </AnimatePresence>
-            </motion.div>
+            </MotionDiv>
           )}
         </main>
 
         {/* Right rail */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Suggested groups */}
-          <motion.div className="card" style={{ padding: 20 }} variants={reduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.15 }}>
+          <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.15 }}>
             <div className="section-header">
               <h3 className="section-title" style={{ fontSize: 15 }}>Suggested Groups</h3>
               <a href="/groups" className="section-link">See all</a>
@@ -297,7 +304,7 @@ export default function FeedPage() {
                     <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.members.toLocaleString()} members</div>
                   </div>
-                  <motion.button
+                  <MotionButton
                     id={`rail-join-${g.id}`}
                     className={`btn btn-sm ${g.joined ? 'btn-ghost' : 'btn-secondary'}`}
                     onClick={() => toggleJoin(g.id)}
@@ -305,14 +312,14 @@ export default function FeedPage() {
                     style={{ color: g.joined ? 'var(--brand-teal)' : undefined, fontSize: 12, padding: '4px 11px' }}
                   >
                     {g.joined ? '✓' : 'Join'}
-                  </motion.button>
+                  </MotionButton>
                 </div>
               ))}
             </div>
-          </motion.div>
+          </MotionDiv>
 
           {/* Upcoming events */}
-          <motion.div className="card" style={{ padding: 20 }} variants={reduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.25 }}>
+          <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.25 }}>
             <div className="section-header">
               <h3 className="section-title" style={{ fontSize: 15 }}>Upcoming Events</h3>
               <a href="/events" className="section-link">See all</a>
@@ -326,13 +333,13 @@ export default function FeedPage() {
                 </div>
               ))}
             </div>
-          </motion.div>
+          </MotionDiv>
 
           {/* Discover prompt */}
-          <motion.div
+          <MotionDiv
             className="card"
             style={{ padding: 20, background: 'linear-gradient(135deg, hsla(247,75%,64%,0.12), hsla(32,98%,55%,0.08))' }}
-            variants={reduced ? undefined : fadeUp}
+            variants={isReduced ? undefined : fadeUp}
             initial="hidden"
             animate="visible"
             transition={{ delay: 0.35 }}
@@ -341,7 +348,7 @@ export default function FeedPage() {
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Find your people</div>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>Connect with Gujaratis by shared roots, city, and industry.</p>
             <a href="/discover" className="btn btn-indigo btn-sm" style={{ width: '100%' }}>Explore Discover</a>
-          </motion.div>
+          </MotionDiv>
         </aside>
       </div>
     </div>
