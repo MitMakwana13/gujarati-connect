@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Required for self-hosted Docker container deployment
-  output: "standalone",
-
   // Strip X-Powered-By header
   poweredByHeader: false,
 
