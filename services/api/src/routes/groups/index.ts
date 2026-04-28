@@ -17,6 +17,10 @@ export default async function groupRoutes(app: FastifyInstance): Promise<void> {
     '/',
     { schema: { tags: ['groups'], summary: 'List groups' } },
     async (req, reply) => {
+      // Optional auth to populate myMembership for authenticated callers
+      await app.authenticateOptional(req, reply);
+      const userId = req.userId ?? null;
+
       const query = groupListQuerySchema.parse(req.query);
       const conditions = [`g.status = 'active'`, `g.visibility != 'hidden'`];
       const values: unknown[] = [];
@@ -35,14 +39,24 @@ export default async function groupRoutes(app: FastifyInstance): Promise<void> {
         values.push(query.cursor);
       }
 
+      // userId param for myMembership LEFT JOIN
+      values.push(userId);
+      const userIdx = idx++;
       values.push(query.limit + 1);
+
       const rows = await app.db.query<Record<string, unknown>>(
         `SELECT g.id, g.name, g.slug, g.description, g.cover_image_url, g.visibility,
                 g.join_policy, g.member_count, g.tags, g.created_at,
-                p.display_name AS creator_name
+                p.display_name AS creator_name,
+                json_build_object(
+                  'role', gm.role,
+                  'status', gm.status,
+                  'joined_at', gm.joined_at
+                ) FILTER (WHERE gm.user_id IS NOT NULL) AS "myMembership"
          FROM groups g
          JOIN users u ON u.id = g.created_by
          JOIN profiles p ON p.user_id = u.id
+         LEFT JOIN group_memberships gm ON gm.group_id = g.id AND gm.user_id = $${userIdx}
          WHERE ${conditions.join(' AND ')}
          ORDER BY g.member_count DESC, g.created_at DESC
          LIMIT $${idx}`,

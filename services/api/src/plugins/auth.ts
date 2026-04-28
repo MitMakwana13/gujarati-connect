@@ -38,6 +38,7 @@ interface JwtRefreshPayload extends JWTPayload {
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authenticateOptional: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
     authorizeRoles: (...roles: UserRoleLiteral[]) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
     generateTokens: (userId: string, email: string, role: UserRoleLiteral) => Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>;
     verifyRefreshToken: (token: string) => Promise<JwtRefreshPayload>;
@@ -182,6 +183,29 @@ export const authPlugin = fp(
           return reply.status(401).send({
             errors: [{ code: 'UNAUTHORIZED', message: 'Invalid or expired token' }],
           });
+        }
+      },
+    );
+
+    // ── authenticateOptional hook ───────────────────────────
+    // Reads JWT silently if present — never rejects unauthenticated requests.
+    app.decorate(
+      'authenticateOptional',
+      async (req: FastifyRequest, _reply: FastifyReply) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) return; // No token — skip
+
+        const token = authHeader.slice(7);
+        try {
+          const { payload } = await jwtVerify<JwtAccessPayload>(token, accessSecret, {
+            algorithms: ['HS256'],
+          });
+          if (payload.type === 'access' && payload.sub) {
+            req.userId = payload.sub;
+            req.userRole = payload.role;
+          }
+        } catch {
+          // Invalid token — treat as unauthenticated, do not reject
         }
       },
     );

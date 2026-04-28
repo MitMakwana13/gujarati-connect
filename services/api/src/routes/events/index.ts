@@ -9,6 +9,12 @@ import { AppError, ForbiddenError, NotFoundError } from '../../plugins/error-han
 export default async function eventRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /events ───────────────────────────────────────────
   app.get('/', { schema: { tags: ['events'], summary: 'List events' } }, async (req, reply) => {
+    // Optional auth: try to identify the caller without rejecting unauthenticated requests.
+    // If Authorization header is present, app.authenticate has already run via a preHandler elsewhere;
+    // we access req.userId which will be undefined for unauthenticated requests.
+    await app.authenticateOptional(req, reply);
+    const userId = req.userId ?? null;
+
     const query = eventListQuerySchema.parse(req.query);
     const conditions = [`e.deleted_at IS NULL`, `e.status IN ('upcoming', 'live')`, `e.visibility = 'public'`];
     const values: unknown[] = [];
@@ -21,14 +27,21 @@ export default async function eventRoutes(app: FastifyInstance): Promise<void> {
     if (query.startsAfter){ conditions.push(`e.starts_at >= $${idx++}`);   values.push(query.startsAfter); }
     if (query.cursor)     { conditions.push(`e.starts_at > $${idx++}`);    values.push(query.cursor); }
 
+    // Push userId for the LEFT JOIN (null for unauthenticated = no RSVP rows matched)
+    values.push(userId);
+    const userIdx = idx++;
     values.push(query.limit + 1);
+
     const rows = await app.db.query<Record<string, unknown>>(
       `SELECT e.id, e.title, e.description, e.cover_image_url, e.event_type, e.tags,
               e.venue_name, e.city_id, e.starts_at, e.ends_at, e.timezone,
               e.rsvp_count, e.max_attendees, e.visibility, e.status,
               -- NEVER return exact lat/lng in public listing
-              p.display_name AS organizer_name, p.avatar_url AS organizer_avatar
-       FROM events e JOIN profiles p ON p.user_id = e.organizer_id
+              p.display_name AS organizer_name, p.avatar_url AS organizer_avatar,
+              r.status AS my_rsvp
+       FROM events e
+       JOIN profiles p ON p.user_id = e.organizer_id
+       LEFT JOIN event_rsvps r ON r.event_id = e.id AND r.user_id = $${userIdx}
        WHERE ${conditions.join(' AND ')}
        ORDER BY e.starts_at ASC LIMIT $${idx}`,
       values,

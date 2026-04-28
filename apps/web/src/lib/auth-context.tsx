@@ -23,6 +23,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ ok: boolean; error?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -138,6 +139,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const verifyOtp = useCallback(async (email: string, otp: string) => {
+    try {
+      const res = await fetch('/api/backend/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      });
+      const json = await res.json() as {
+        data?: { user: Record<string, unknown>; tokens: { accessToken: string } };
+        errors?: { message: string }[];
+      };
+      if (!res.ok) {
+        return { ok: false, error: json.errors?.[0]?.message ?? 'Invalid or expired code.' };
+      }
+      const { user: rawUser, tokens } = json.data!;
+      saveToken(tokens.accessToken);
+      setUser(parseUser(rawUser));
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Network error. Please try again.' };
+    }
+  }, []);
+
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
@@ -145,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, verifyOtp, logout }}>
       {children}
     </AuthContext.Provider>
   );

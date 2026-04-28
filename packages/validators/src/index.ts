@@ -137,9 +137,6 @@ export const createPostSchema = z
     mediaUrls: z.array(z.string().url().max(2048)).max(10).optional(),
     linkUrl: z.string().url().max(2048).optional(),
   })
-  .refine((d) => d.groupId ?? d.communityId, {
-    message: 'Post must belong to a group or community',
-  })
   .refine((d) => d.body ?? (d.mediaUrls && d.mediaUrls.length > 0) ?? d.linkUrl, {
     message: 'Post must have body, media, or link',
   });

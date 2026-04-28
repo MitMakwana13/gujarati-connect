@@ -16,7 +16,7 @@ const USER_TYPES = [
 type Step = 'form' | 'verify';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, verifyOtp } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<Step>('form');
   const [form, setForm] = useState({
@@ -52,25 +52,13 @@ export default function RegisterPage() {
     if (otp.length !== 6) { setError('Enter the 6-digit code.'); return; }
     setVerifyLoading(true);
     try {
-      const res = await fetch('/api/backend/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, otp }),
-      });
-      const json = await res.json() as {
-        data?: { user: Record<string, unknown>; tokens: { accessToken: string } };
-        errors?: { message: string }[];
-      };
-
-      if (!res.ok) {
-        setError(json.errors?.[0]?.message ?? 'Invalid or expired code.');
+      // Delegate to auth context — saves token + sets user state + no raw sessionStorage write
+      const result = await verifyOtp(form.email, otp);
+      if (!result.ok) {
+        setError(result.error ?? 'Invalid or expired code.');
         return;
       }
-
-      // Reload after verification so the auth provider restores the new session.
-      const { tokens } = json.data!;
-      try { sessionStorage.setItem('gg_access_token', tokens.accessToken); } catch { /* incognito */ }
-      window.location.assign('/feed');
+      router.push('/feed');
     } catch {
       setError('Network error. Please try again.');
     } finally {

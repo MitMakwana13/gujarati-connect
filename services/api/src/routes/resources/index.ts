@@ -27,7 +27,10 @@ export default async function resourceRoutes(app: FastifyInstance): Promise<void
               -- contact_detail exposed to authenticated community members only
               rl.contact_detail,
               rl.price, rl.currency, rl.expires_at, rl.created_at,
-              p.display_name AS author_name, p.avatar_url AS author_avatar,
+              rl.is_active,
+              p.display_name AS author_name,
+              p.display_name AS author_display_name,
+              p.avatar_url AS author_avatar,
               rl.author_id
        FROM resource_listings rl
        JOIN profiles p ON p.user_id = rl.author_id
