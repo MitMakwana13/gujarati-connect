@@ -79,6 +79,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rateLimit, {
     max: config.rateLimit.global.max,
     timeWindow: config.rateLimit.global.windowMs,
+    allowList: config.rateLimit.allowList,
     // Redis backend for distributed rate limiting
     redis: undefined, // Will be injected after redis plugin registers — see plugin order below
     keyGenerator: (req) => {
@@ -155,7 +156,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     options: { maxPayload: 1048576 } // 1MB
   });
   
-  await app.register(cookie, { secret: process.env.COOKIE_SECRET });
+  await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-cookie-secret-fallback-32-chars!!' });
   await app.register(fastifyCsrfProtection, {
     cookieOpts: { signed: true, httpOnly: true, secure: config.env === 'production' }
   });

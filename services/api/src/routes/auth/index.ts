@@ -20,6 +20,7 @@ import {
 import { config } from '../../config/index.js';
 import { AppError, ConflictError, NotFoundError } from '../../plugins/error-handler.js';
 import { auditLog } from '../../utils/audit.js';
+import { emailService } from '../../services/email.service.js';
 import type { UserRole } from '@gujarati-global/types';
 
 const OTP_PREFIX = 'otp:';
@@ -87,12 +88,8 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       // Generate and store OTP for email verification
       const otp = await generateAndStoreOtp(app, body.email);
 
-      // In dev, log OTP to console. In prod, send email.
-      if (config.env !== 'production') {
-        app.log.info({ email: body.email, otp }, '[auth] Dev OTP for email verification');
-      }
-      // TODO(infra): Integrate email service (SendGrid / Azure Communication Services)
-      // Tracking: GG-EMAIL-001. Required before production launch.
+      // Send OTP via email service
+      await emailService.sendOtpEmail(body.email, otp, app.log);
 
       await auditLog(app, {
         actorId: user.id,
@@ -196,9 +193,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       if (!user.email_verified) {
         // Resend OTP
         const otp = await generateAndStoreOtp(app, email);
-        if (config.env !== 'production') {
-          app.log.info({ email, otp }, '[auth] Dev OTP resent (email unverified)');
-        }
+        await emailService.sendOtpEmail(email, otp, app.log);
         throw new AppError('EMAIL_UNVERIFIED', 'Please verify your email before logging in', 403);
       }
 
@@ -226,7 +221,6 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/refresh',
     {
-      onRequest: [app.csrfProtection],
       schema: { tags: ['auth'], summary: 'Refresh access token' },
     },
     async (req, reply) => {

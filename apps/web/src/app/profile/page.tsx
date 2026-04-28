@@ -236,7 +236,9 @@ export default function ProfilePage() {
                   )}
                   <div>
                     <h3 style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4, letterSpacing: '0.05em' }}>Account</h3>
-                    <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--brand-teal)' }}>✓ Email Verified</p>
+                    <p style={{ fontSize: 15, fontWeight: 500, color: profile?.email_verified ? 'var(--brand-teal)' : 'var(--text-muted)' }}>
+                      {profile?.email_verified ? '✓ Email Verified' : 'Email not verified'}
+                    </p>
                   </div>
                 </div>
 

@@ -177,9 +177,9 @@ export default function FeedPage() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{post.author.name}</div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', gap: 6 }}>
-                          <span>📍 {post.author.city}</span>
+                          {post.author.city && <span>📍 {post.author.city}</span>}
                           {post.group && <><span>·</span><span>in <span style={{ color: 'var(--brand-indigo)' }}>{post.group}</span></span></>}
-                          <span>· {post.time}</span>
+                          <span>{post.author.city || post.group ? '· ' : ''}{post.time}</span>
                         </div>
                       </div>
                     </header>

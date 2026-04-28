@@ -63,16 +63,16 @@ export default function RegisterPage() {
       };
 
       if (!res.ok) {
-        setError(json.errors?.[0]?.message ?? 'Invalid or expired code. Check your API console for the OTP.');
+        setError(json.errors?.[0]?.message ?? 'Invalid or expired code.');
         return;
       }
 
-      // Save token and redirect — same pattern as login
+      // Reload after verification so the auth provider restores the new session.
       const { tokens } = json.data!;
       try { sessionStorage.setItem('gg_access_token', tokens.accessToken); } catch { /* incognito */ }
-      router.push('/feed');
+      window.location.assign('/feed');
     } catch {
-      setError('Network error — is the API running?');
+      setError('Network error. Please try again.');
     } finally {
       setVerifyLoading(false);
     }
@@ -89,11 +89,8 @@ export default function RegisterPage() {
             <div style={{ fontSize: 48, marginBottom: 12 }}>📨</div>
             <h1 style={{ fontSize: 26, marginBottom: 8 }}>Verify your email</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>
-              We generated a verification code for <strong>{form.email}</strong>.
+              We sent a verification code to <strong>{form.email}</strong>.
             </p>
-            <div style={{ marginTop: 12, padding: '10px 14px', background: 'hsla(247,75%,64%,0.1)', border: '1px solid hsla(247,75%,64%,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--brand-indigo)' }}>
-              💡 In development, the OTP is printed in the <strong>API server console</strong>.
-            </div>
           </div>
 
           <form id="verify-form" onSubmit={(e) => { void handleVerify(e); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

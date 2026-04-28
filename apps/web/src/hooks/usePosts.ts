@@ -9,7 +9,7 @@ function normalisePost(p: any) {
     author: {
       name: (p.author_display_name as string) ?? 'Unknown',
       avatar: (p.author_avatar_url as string) ?? '🧑',
-      city: 'Global',
+      city: (p.author_city as string | null) ?? '',
       initials: ((p.author_display_name as string) ?? 'U')
         .split(' ')
         .map((n: string) => n[0])
@@ -23,7 +23,7 @@ function normalisePost(p: any) {
     liked: p.my_reaction === 'like',
     comments: (p.comment_count as number) ?? 0,
     tags: [] as string[],
-    group: p.group_id ? 'A Group' : undefined,
+    group: (p.group_name as string | null) ?? undefined,
   };
 }
 

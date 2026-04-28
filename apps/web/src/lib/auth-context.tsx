@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(parseUser(rawUser));
       return { ok: true };
     } catch {
-      return { ok: false, error: 'Network error — is the API running?' };
+      return { ok: false, error: 'Network error. Please try again.' };
     }
   }, []);
 

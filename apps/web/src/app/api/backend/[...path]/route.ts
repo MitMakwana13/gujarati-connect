@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api/v1';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+// Vercel must set this to the Fastify API base, including /api/v1.
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api/v1').replace(/\/+$/, '');
+
+const REQUEST_HEADERS_TO_FORWARD = ['authorization', 'content-type', 'cookie'];
+const RESPONSE_HEADERS_TO_FORWARD = ['content-type', 'set-cookie', 'retry-after', 'www-authenticate', 'x-request-id'];
+const BODYLESS_STATUSES = new Set([204, 304]);
 
 export async function GET(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const params = await context.params;
@@ -29,52 +37,48 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ path:
 
 async function proxyRequest(req: NextRequest, pathArray: string[]) {
   try {
-    const targetPath = pathArray.join('/');
-    const searchParams = req.nextUrl.search;
-    const targetUrl = `${API_URL}/${targetPath}${searchParams}`;
+    const targetPath = pathArray.map((segment) => encodeURIComponent(segment)).join('/');
+    const targetUrl = `${API_URL}/${targetPath}${req.nextUrl.search}`;
 
-    // Forward headers, passing the Authorization header from the client through
     const headers = new Headers();
-    const contentType = req.headers.get('content-type');
-    if (contentType) headers.set('content-type', contentType);
-    const auth = req.headers.get('authorization');
-    if (auth) headers.set('authorization', auth);
-
-    const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
-    let body: BodyInit | undefined = undefined;
-
-    if (isMutation && contentType?.includes('application/json')) {
-      const text = await req.text();
-      body = text || undefined;
-    } else if (isMutation) {
-      body = req.body as BodyInit | undefined;
+    for (const headerName of REQUEST_HEADERS_TO_FORWARD) {
+      const value = req.headers.get(headerName);
+      if (value) headers.set(headerName, value);
     }
+
+    const allowsBody = !['GET', 'HEAD'].includes(req.method);
+    const bodyBuffer = allowsBody ? await req.arrayBuffer() : undefined;
+    const body = bodyBuffer && bodyBuffer.byteLength > 0 ? bodyBuffer : undefined;
 
     const res = await fetch(targetUrl, {
       method: req.method,
       headers,
       body,
       cache: 'no-store',
+      next: { revalidate: 0 },
     });
 
     const responseHeaders = new Headers();
     responseHeaders.set('x-bff-proxied', 'true');
-    // Forward Set-Cookie from API (for refresh token cookie)
-    const setCookie = res.headers.get('set-cookie');
-    if (setCookie) responseHeaders.set('set-cookie', setCookie);
 
-    if (res.headers.get('content-type')?.includes('application/json')) {
-      const resBody = await res.json();
-      return NextResponse.json(resBody, { status: res.status, headers: responseHeaders });
-    } else {
-      const resBody = await res.text();
-      return new NextResponse(resBody, { status: res.status, headers: responseHeaders });
+    for (const headerName of RESPONSE_HEADERS_TO_FORWARD) {
+      const value = res.headers.get(headerName);
+      if (value) responseHeaders.set(headerName, value);
     }
+    responseHeaders.set('cache-control', 'no-store');
+    responseHeaders.set('vary', 'Authorization, Cookie');
+
+    if (BODYLESS_STATUSES.has(res.status)) {
+      return new NextResponse(null, { status: res.status, headers: responseHeaders });
+    }
+
+    const resBody = await res.arrayBuffer();
+    return new NextResponse(resBody, { status: res.status, headers: responseHeaders });
   } catch (error) {
     console.error('BFF Proxy Error:', error);
     return NextResponse.json(
-      { errors: [{ message: 'Could not reach the API server. Is it running on port 4000?' }] },
-      { status: 502 },
+      { errors: [{ message: 'Could not reach the API server. Please try again shortly.' }] },
+      { status: 502, headers: { 'cache-control': 'no-store' } },
     );
   }
 }

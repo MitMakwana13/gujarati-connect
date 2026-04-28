@@ -1,9 +1,9 @@
 import { test } from 'vitest';
-import { build } from '../src/app';
+import { buildApp } from '../src/app';
 import WebSocket from 'ws';
 
 test('WebSocket Auth Rejection (Invalid Token)', async ({ expect }) => {
-  const app = await build();
+  const app = await buildApp();
   await app.listen({ port: 0 }); // Websockets require listening port
   const address = app.server.address() as any;
   const wsUrl = `ws://localhost:${address.port}/api/v1/messages/conversations/123/stream`;
@@ -26,7 +26,7 @@ test('WebSocket Auth Rejection (Invalid Token)', async ({ expect }) => {
 });
 
 test('WebSocket Access Rejection (Cross-user Thread)', async ({ expect }) => {
-  const app = await build();
+  const app = await buildApp();
   await app.listen({ port: 0 });
   
   // Here we would setup a valid token for User A, but try to access User B's conversation (456)

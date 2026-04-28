@@ -89,7 +89,7 @@ export default function ResourcesPage() {
             {Array.from({ length: 6 }).map((_, i) => <PostCardSkeleton key={i} />)}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠️" title="Could not load resources" description="Make sure the API server is running." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+          <EmptyState icon="⚠️" title="Could not load resources" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
         ) : shown.length === 0 ? (
           <EmptyState icon="📋" title="No listings found" description={filter !== 'All' ? `No ${CATEGORY_LABELS[filter]} listings right now.` : 'No listings match your search.'} action={{ label: 'Clear filters', onClick: () => { setSearch(''); setFilter('All'); } }} />
         ) : (

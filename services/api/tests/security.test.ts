@@ -1,10 +1,10 @@
 import { test } from 'vitest';
-import { build } from '../src/app'; // assuming a build helper exists or we can inject Fastify
+import { buildApp } from '../src/app'; // assuming a build helper exists or we can inject Fastify
 
 // Normally we would use tap or vitest to run fastify.inject()
 
 test('Security Headers', async ({ expect }) => {
-  const app = await build();
+  const app = await buildApp();
   
   const response = await app.inject({
     method: 'GET',
@@ -19,7 +19,7 @@ test('Security Headers', async ({ expect }) => {
 });
 
 test('Rate Limiting (429)', async ({ expect }) => {
-  const app = await build();
+  const app = await buildApp();
   
   // Spam login endpoint
   let lastStatus = 200;

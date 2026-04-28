@@ -18,6 +18,15 @@ function optionalEnv(key: string, defaultValue: string): string {
   return process.env[key] ?? defaultValue;
 }
 
+function requireProdEnv(key: string): string {
+  const isProd = optionalEnv('NODE_ENV', 'development') === 'production';
+  const value = process.env[key];
+  if (isProd && !value) {
+    throw new Error(`[config] Required environment variable "${key}" is missing in production`);
+  }
+  return value ?? '';
+}
+
 function optionalIntEnv(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (!value) return defaultValue;
@@ -62,6 +71,7 @@ export const config = {
   },
 
   rateLimit: {
+    allowList: optionalEnv('RATE_LIMIT_ALLOW_LIST', '').split(',').map(s => s.trim()).filter(Boolean),
     global: {
       max: optionalIntEnv('RATE_LIMIT_GLOBAL_MAX', 1000),
       windowMs: optionalIntEnv('RATE_LIMIT_GLOBAL_WINDOW_MS', 60000),
@@ -94,6 +104,14 @@ export const config = {
     pushNotifications: optionalEnv('FEATURE_PUSH_NOTIFICATIONS', 'false') === 'true',
     aiModeration: optionalEnv('FEATURE_AI_MODERATION', 'false') === 'true',
     nearbyDiscovery: optionalEnv('FEATURE_NEARBY_DISCOVERY', 'false') === 'true',
+  },
+
+  email: {
+    host: optionalEnv('EMAIL_SMTP_HOST', 'localhost'),
+    port: optionalIntEnv('EMAIL_SMTP_PORT', 1025), // Defaults to local testing SMTP
+    user: optionalEnv('EMAIL_SMTP_USER', ''),
+    pass: requireProdEnv('EMAIL_SMTP_PASS'),
+    from: optionalEnv('EMAIL_FROM', 'noreply@gujaratiglobal.com'),
   },
 
   bcryptRounds: optionalIntEnv('BCRYPT_ROUNDS', 12),

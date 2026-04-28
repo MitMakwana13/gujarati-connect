@@ -7,10 +7,10 @@ export const metadata: Metadata = {
 };
 
 const STATS = [
-  { value: '50K+', label: 'Community Members' },
-  { value: '120+', label: 'Cities Worldwide' },
-  { value: '2K+', label: 'Monthly Events' },
-  { value: '800+', label: 'Active Groups' },
+  { value: 'Global', label: 'Community Network' },
+  { value: 'Local', label: 'City Chapters' },
+  { value: 'Live', label: 'Community Events' },
+  { value: 'Open', label: 'Interest Groups' },
 ];
 
 const FEATURES = [

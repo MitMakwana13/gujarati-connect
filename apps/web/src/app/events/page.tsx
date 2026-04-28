@@ -63,6 +63,7 @@ export default function EventsPage() {
   }
 
   const isFull = (evt: ApiEvent) => evt.max_attendees !== null && evt.rsvp_count >= evt.max_attendees && evt.my_rsvp !== 'going';
+  const actionError = rsvpMutation.error || cancelRsvpMutation.error;
 
   return (
     <div>
@@ -87,12 +88,18 @@ export default function EventsPage() {
           </div>
         </motion.div>
 
+        {actionError && (
+          <div className="card" style={{ padding: 12, marginBottom: 24, background: '#ef4444', color: 'white', fontWeight: 600 }}>
+            ⚠️ {(actionError as Error).message || 'An error occurred while processing your request.'}
+          </div>
+        )}
+
         {eventsLoading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 1fr))', gap: 14 }}>
             {Array.from({ length: 4 }).map((_, i) => <PostCardSkeleton key={i} />)}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠️" title="Could not load events" description="Make sure the API server is running." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+          <EmptyState icon="⚠️" title="Could not load events" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
         ) : (
           <>
             {attending.length > 0 && (

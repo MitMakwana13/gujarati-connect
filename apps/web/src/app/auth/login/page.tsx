@@ -90,26 +90,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
-          <div className="divider" style={{ flex: 1 }} />
-          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Or continue with</span>
-          <div className="divider" style={{ flex: 1 }} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            id="quick-fill-btn"
-            className="btn btn-secondary"
-            style={{ flex: 1 }}
-            onClick={() => {
-              setEmail('priya.patel@example.com');
-              setPassword('DevPassword123!');
-            }}
-          >
-            ⚡ Fill Dev Credentials
-          </button>
-        </div>
-
         <p style={{ textAlign: 'center', fontSize: 14, color: 'var(--text-secondary)', marginTop: 24 }}>
           Don&apos;t have an account?{' '}
           <Link href="/auth/register" style={{ color: 'var(--brand-saffron)', textDecoration: 'none', fontWeight: 600 }}>

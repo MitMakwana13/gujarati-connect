@@ -48,6 +48,7 @@ export default function GroupsPage() {
   }
 
   const isActionLoading = joinMutation.isPending || leaveMutation.isPending;
+  const actionError = joinMutation.error || leaveMutation.error;
 
   return (
     <div>
@@ -69,12 +70,18 @@ export default function GroupsPage() {
           </div>
         </motion.div>
 
+        {actionError && (
+          <div className="card" style={{ padding: 12, marginBottom: 24, background: '#ef4444', color: 'white', fontWeight: 600 }}>
+            ⚠️ {(actionError as Error).message || 'An error occurred while processing your request.'}
+          </div>
+        )}
+
         {groupsLoading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
             {Array.from({ length: 6 }).map((_, i) => <PostCardSkeleton key={i} />)}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠️" title="Could not load groups" description="Make sure the API server is running." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+          <EmptyState icon="⚠️" title="Could not load groups" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
         ) : shown.length === 0 ? (
           activeTab === 'mine' ? (
             <EmptyState icon="👥" title="You haven't joined any groups" description="Browse all groups and join one that interests you." action={{ label: 'Browse groups', onClick: () => setActiveTab('all') }} />

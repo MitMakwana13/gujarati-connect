@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { href: '/groups',    icon: '👥', label: 'Groups' },
   { href: '/events',    icon: '🎉', label: 'Events' },
   { href: '/resources', icon: '📋', label: 'Resources' },
-  { href: '/messages',  icon: '💬', label: 'Messages', unread: 3 },
+  { href: '/messages',  icon: '💬', label: 'Messages' },
 ];
 
 export default function AppNav() {
@@ -65,9 +65,6 @@ export default function AppNav() {
                 )}
                 <span style={{ fontSize: 16 }}>{link.icon}</span>
                 <span>{link.label}</span>
-                {link.unread ? (
-                  <span className="unread-count">{link.unread}</span>
-                ) : null}
               </Link>
             );
           })}
@@ -84,12 +81,6 @@ export default function AppNav() {
                 onClick={() => router.push('/notifications')}
               >
                 🔔
-                <span style={{
-                  position: 'absolute', top: 4, right: 4,
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: 'var(--brand-rose)',
-                  border: '2px solid var(--bg-glass)',
-                }} />
               </button>
               <motion.button
                 id="nav-profile-avatar"

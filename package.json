@@ -17,7 +17,8 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
-    "clean": "turbo run clean && rimraf node_modules"
+    "clean": "turbo run clean && rimraf node_modules",
+    "smoke:prod": "pnpm --filter @gujarati-global/api exec tsx ../../scripts/smoke-test.ts"
   },
   "devDependencies": {
     "@gujarati-global/eslint-config": "workspace:*",

@@ -50,6 +50,17 @@ const SEED_IDS = {
   eventGarbaNight: '00000000-0000-0000-0004-000000000001',
   eventH1bWorkshop: '00000000-0000-0000-0004-000000000002',
   eventCricketTournament: '00000000-0000-0000-0004-000000000003',
+
+  // Posts
+  post1: '00000000-0000-0000-0005-000000000001',
+  post2: '00000000-0000-0000-0005-000000000002',
+  post3: '00000000-0000-0000-0005-000000000003',
+  post4: '00000000-0000-0000-0005-000000000004',
+
+  // Resources
+  resource1: '00000000-0000-0000-0006-000000000001',
+  resource2: '00000000-0000-0000-0006-000000000002',
+  resource3: '00000000-0000-0000-0006-000000000003',
 };
 
 type SeedUser = {
@@ -370,6 +381,7 @@ async function seedPosts(): Promise<void> {
 
   const posts = [
     {
+      id: SEED_IDS.post1,
       authorId: SEED_IDS.user1,
       groupId: SEED_IDS.groupGarbaHouston,
       communityId: SEED_IDS.communityHouston,
@@ -377,6 +389,7 @@ async function seedPosts(): Promise<void> {
       body: 'So excited for Navratri this year! 🎉 Who else is coming? Let\'s organize a group carpool from Sugarland.',
     },
     {
+      id: SEED_IDS.post2,
       authorId: SEED_IDS.user2,
       groupId: SEED_IDS.groupH1bSanJose,
       communityId: SEED_IDS.communitySanJose,
@@ -384,6 +397,7 @@ async function seedPosts(): Promise<void> {
       body: 'H1B lottery results for FY2027 are scheduled for April. Start preparing your documents early. Happy to answer questions from the community!',
     },
     {
+      id: SEED_IDS.post3,
       authorId: SEED_IDS.user5,
       groupId: SEED_IDS.groupStudentsNyc,
       communityId: SEED_IDS.communityNyc,
@@ -391,6 +405,7 @@ async function seedPosts(): Promise<void> {
       body: 'Looking for a roommate near Columbia/Morningside Heights for Fall 2026. Budget ~$1,500/month. DM me if interested! 🏠',
     },
     {
+      id: SEED_IDS.post4,
       authorId: SEED_IDS.user3,
       groupId: SEED_IDS.groupStudentsNyc,
       communityId: SEED_IDS.communityNyc,
@@ -402,8 +417,9 @@ async function seedPosts(): Promise<void> {
   for (const p of posts) {
     await client.query(
       `INSERT INTO posts (id, author_id, group_id, community_id, content_type, body, moderation_status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'published')`,
-      [randomUUID(), p.authorId, p.groupId, p.communityId, p.contentType, p.body],
+       VALUES ($1, $2, $3, $4, $5, $6, 'published')
+       ON CONFLICT (id) DO NOTHING`,
+      [p.id, p.authorId, p.groupId, p.communityId, p.contentType, p.body],
     );
   }
 
@@ -415,6 +431,7 @@ async function seedResourceListings(): Promise<void> {
 
   const resources = [
     {
+      id: SEED_IDS.resource1,
       authorId: SEED_IDS.user5,
       cityId: SEED_IDS.cityNyc,
       category: 'roommate',
@@ -423,6 +440,7 @@ async function seedResourceListings(): Promise<void> {
       contactMethod: 'in_app',
     },
     {
+      id: SEED_IDS.resource2,
       authorId: SEED_IDS.user1,
       cityId: SEED_IDS.cityHouston,
       category: 'airport_pickup',
@@ -431,6 +449,7 @@ async function seedResourceListings(): Promise<void> {
       contactMethod: 'in_app',
     },
     {
+      id: SEED_IDS.resource3,
       authorId: SEED_IDS.user2,
       cityId: SEED_IDS.citySanJose,
       category: 'h1b_help',
@@ -443,8 +462,9 @@ async function seedResourceListings(): Promise<void> {
   for (const r of resources) {
     await client.query(
       `INSERT INTO resource_listings (id, author_id, city_id, category, title, description, contact_method, moderation_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'published')`,
-      [randomUUID(), r.authorId, r.cityId, r.category, r.title, r.description, r.contactMethod],
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'published')
+       ON CONFLICT (id) DO NOTHING`,
+      [r.id, r.authorId, r.cityId, r.category, r.title, r.description, r.contactMethod],
     );
   }
 

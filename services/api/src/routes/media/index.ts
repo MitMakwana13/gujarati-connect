@@ -79,7 +79,7 @@ export default async function mediaRoutes(app: FastifyInstance): Promise<void> {
           throw new AppError('UPLOAD_FAILED', `Failed to upload file: ${error.message}`, 500);
         }
 
-        const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(blobName);
+        const { data: { publicUrl } } = getSupabase().storage.from('media').getPublicUrl(blobName);
         app.log.info({ userId: req.userId, blobName, mimetype: part.mimetype }, '[media] File uploaded to Supabase');
         uploadedUrls.push(publicUrl);
       }
