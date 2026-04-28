@@ -12,39 +12,12 @@ const MotionArticle = dynamic(() => import('framer-motion').then(mod => mod.moti
 const MotionSpan = dynamic(() => import('framer-motion').then(mod => mod.motion.span), { ssr: false });
 import { useAuth } from '@/lib/auth-context';
 import { usePosts, useToggleLike, useCreatePost } from '@/hooks/usePosts';
+import { useEvents } from '@/hooks/useEvents';
+import { useGroups } from '@/hooks/useGroups';
 import AppNav from '@/components/AppNav';
-import { stagger, fadeUp, cardHover, buttonTap, scalePop, reduced } from '@/lib/motion';
+import { stagger, fadeUp, buttonTap, scalePop, reduced } from '@/lib/motion';
 import { PostCardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-
-interface Post {
-  id: string;
-  author: { name: string; avatar: string; city: string; initials: string };
-  body: string;
-  time: string;
-  likes: number;
-  comments: number;
-  tags: string[];
-  liked: boolean;
-  group?: string;
-}
-
-const SEED_POSTS: Post[] = [
-  { id: '1', author: { name: 'Ananya Shah', avatar: '🧕', city: 'Chicago, IL', initials: 'AS' }, body: 'Incredible Navratri celebration last week at the Chicago Gujarati Association! Over 800 people came out. Who is looking forward to next year?', time: '2h ago', likes: 128, comments: 34, tags: ['#Navratri', '#ChicagoGujaratis'], liked: false, group: 'Chicago Gujarati Assoc.' },
-  { id: '2', author: { name: 'Vivek Patel', avatar: '👨‍💻', city: 'San Francisco, CA', initials: 'VP' }, body: 'Just wrapped my H-1B transition after 3 years on OPT. Happy to answer questions especially around RFEs and specialty occupation. Drop questions below.', time: '5h ago', likes: 94, comments: 41, tags: ['#H1B', '#Immigration'], liked: false },
-  { id: '3', author: { name: 'Priya Mehta', avatar: '👩‍🎓', city: 'Boston, MA', initials: 'PM' }, body: 'Looking for 1 more roommate near BU/Northeastern for next semester. Vegetarian household, clean and quiet. DM if interested!', time: '8h ago', likes: 57, comments: 22, tags: ['#Boston', '#Housing'], liked: false },
-];
-
-const SUGGESTED_GROUPS = [
-  { id: '1', name: 'Bay Area Gujaratis', members: 3400, emoji: '🌉', joined: false },
-  { id: '2', name: 'GJ Startup Network', members: 1200, emoji: '🚀', joined: false },
-  { id: '3', name: 'Jain Community USA', members: 890, emoji: '🕉️', joined: false },
-];
-
-const UPCOMING_EVENTS = [
-  { id: '1', title: 'Garba Night — NYC', date: 'Apr 5', city: 'New York' },
-  { id: '2', title: 'Career Mixer London', date: 'Apr 13', city: 'London' },
-];
 
 const SIDEBAR_LINKS = [
   { href: '/feed',      icon: '🏠', label: 'Home Feed' },
@@ -54,20 +27,20 @@ const SIDEBAR_LINKS = [
   { href: '/resources', icon: '📋', label: 'Resources' },
   { href: '/messages',  icon: '💬', label: 'Messages' },
   { href: '/profile',   icon: '👤', label: 'Profile' },
-  { href: '/settings',  icon: '⚙️', label: 'Settings' },
 ];
 
 export default function FeedPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const isReduced = useReducedMotion();
-  const { data: postsData, isLoading: postsLoading } = usePosts();
+  const { data: posts = [], isLoading: postsLoading } = usePosts();
   const toggleLikeMutation = useToggleLike();
   const createPostMutation = useCreatePost();
-  
-  const posts: any[] = postsData || [];
-  
-  const [groups, setGroups] = useState(SUGGESTED_GROUPS);
+
+  // Sidebar: real data with limit
+  const { data: sidebarEvents = [] } = useEvents({ limit: '2' });
+  const { data: sidebarGroups = [] } = useGroups({ limit: '3' });
+
   const [composeText, setComposeText] = useState('');
   const [composeFocused, setComposeFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -86,27 +59,16 @@ export default function FeedPage() {
     toggleLikeMutation.mutate({ id, isCurrentlyLiked });
   }
 
-  function toggleJoin(id: string) {
-    setGroups(prev => prev.map(g => g.id === id ? { ...g, joined: !g.joined } : g));
-  }
-
   async function handlePost(e: FormEvent) {
     e.preventDefault();
     if (!composeText.trim()) return;
-    
-    createPostMutation.mutate({
-      body: composeText,
-      contentType: 'text',
-      mediaUrls: [],
-    }, {
-      onSuccess: () => {
-        setComposeText('');
-        setComposeFocused(false);
-      }
-    });
+    createPostMutation.mutate(
+      { body: composeText, contentType: 'text', mediaUrls: [] },
+      { onSuccess: () => { setComposeText(''); setComposeFocused(false); } }
+    );
   }
 
-  const staggerVariants = isReduced ? reduced.stagger : stagger;
+  const staggerVariants = isReduced ? reduced.stagger : stagger.normal;
   const itemVariants = isReduced ? reduced.fadeUp : fadeUp;
 
   return (
@@ -143,21 +105,10 @@ export default function FeedPage() {
         {/* Feed column */}
         <main style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Compose */}
-          <MotionDiv
-            className="card"
-            style={{ padding: 20 }}
-            variants={isReduced ? undefined : fadeUp}
-            initial="hidden"
-            animate="visible"
-          >
+          <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible">
             <form onSubmit={e => { void handlePost(e); }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
-                  background: 'linear-gradient(135deg, var(--brand-saffron), var(--brand-indigo))',
-                  display: 'grid', placeItems: 'center',
-                  fontSize: 14, fontWeight: 800, color: 'var(--text-inverse)',
-                }}>
+                <div style={{ width: 42, height: 42, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, var(--brand-saffron), var(--brand-indigo))', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 800, color: 'var(--text-inverse)' }}>
                   {user.avatarInitials}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -177,13 +128,7 @@ export default function FeedPage() {
 
               <AnimatePresence>
                 {(composeFocused || composeText) && (
-                  <MotionDiv
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    style={{ overflow: 'hidden' }}
-                  >
+                  <MotionDiv initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
                       <MotionButton type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); }}>Cancel</MotionButton>
                       <MotionButton id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={!composeText.trim() || createPostMutation.isPending}>
@@ -210,21 +155,16 @@ export default function FeedPage() {
           ) : posts.length === 0 ? (
             <EmptyState icon="✨" title="Your feed is empty" description="Follow some communities and connect with people to see their posts here." action={{ label: 'Discover people', onClick: () => router.push('/discover') }} />
           ) : (
-            <MotionDiv
-              className="feed"
-              variants={staggerVariants}
-              initial="hidden"
-              animate="visible"
-            >
+            <MotionDiv className="feed" variants={staggerVariants} initial="hidden" animate="visible">
               <AnimatePresence>
-                {posts.map(post => (
+                {(posts as any[]).map((post: any) => (
                   <MotionArticle
                     key={post.id}
                     id={`post-${post.id}`}
                     className="card post-card"
                     variants={itemVariants}
                     layout
-                    whileHover={isReduced ? undefined : cardHover.hover}
+                    whileHover={isReduced ? undefined : { y: -2 }}
                     initial="hidden"
                     animate="visible"
                     exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.15 } }}
@@ -242,7 +182,6 @@ export default function FeedPage() {
                           <span>· {post.time}</span>
                         </div>
                       </div>
-                      <button id={`post-menu-${post.id}`} className="btn btn-ghost btn-xs">•••</button>
                     </header>
 
                     <p className="post-body">{post.body}</p>
@@ -264,7 +203,7 @@ export default function FeedPage() {
                       >
                         <AnimatePresence mode="wait">
                           <MotionSpan key={post.liked ? 'liked' : 'notliked'} variants={scalePop} initial="hidden" animate="visible">
-                            {post.liked ? '👍' : '👍'}
+                            👍
                           </MotionSpan>
                         </AnimatePresence>
                         {post.liked ? 'Liked' : 'Like'}
@@ -286,60 +225,55 @@ export default function FeedPage() {
 
         {/* Right rail */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Suggested groups */}
+          {/* Groups from API */}
           <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.15 }}>
             <div className="section-header">
               <h3 className="section-title" style={{ fontSize: 15 }}>Suggested Groups</h3>
               <a href="/groups" className="section-link">See all</a>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {groups.map(g => (
-                <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 20, flexShrink: 0 }}>{g.emoji}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.members.toLocaleString()} members</div>
+            {sidebarGroups.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No groups yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {(sidebarGroups as any[]).map((g: any) => (
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 20, flexShrink: 0 }}>👥</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.member_count?.toLocaleString()} members</div>
+                    </div>
+                    <a href="/groups" className="btn btn-sm btn-secondary" style={{ fontSize: 12, padding: '4px 11px' }}>Join</a>
                   </div>
-                  <MotionButton
-                    id={`rail-join-${g.id}`}
-                    className={`btn btn-sm ${g.joined ? 'btn-ghost' : 'btn-secondary'}`}
-                    onClick={() => toggleJoin(g.id)}
-                    whileTap={buttonTap}
-                    style={{ color: g.joined ? 'var(--brand-teal)' : undefined, fontSize: 12, padding: '4px 11px' }}
-                  >
-                    {g.joined ? '✓' : 'Join'}
-                  </MotionButton>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </MotionDiv>
 
-          {/* Upcoming events */}
+          {/* Events from API */}
           <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.25 }}>
             <div className="section-header">
               <h3 className="section-title" style={{ fontSize: 15 }}>Upcoming Events</h3>
               <a href="/events" className="section-link">See all</a>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {UPCOMING_EVENTS.map(evt => (
-                <div key={evt.id} style={{ borderLeft: '3px solid var(--brand-saffron)', paddingLeft: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{evt.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>📅 {evt.date} · 📍 {evt.city}</div>
-                  <a href="/events" className="btn btn-secondary btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }}>RSVP →</a>
-                </div>
-              ))}
-            </div>
+            {sidebarEvents.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No upcoming events.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {sidebarEvents.map((evt: any) => (
+                  <div key={evt.id} style={{ borderLeft: '3px solid var(--brand-saffron)', paddingLeft: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{evt.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      📅 {new Date(evt.starts_at).toLocaleDateString()}
+                    </div>
+                    <a href="/events" className="btn btn-secondary btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }}>RSVP →</a>
+                  </div>
+                ))}
+              </div>
+            )}
           </MotionDiv>
 
           {/* Discover prompt */}
-          <MotionDiv
-            className="card"
-            style={{ padding: 20, background: 'linear-gradient(135deg, hsla(247,75%,64%,0.12), hsla(32,98%,55%,0.08))' }}
-            variants={isReduced ? undefined : fadeUp}
-            initial="hidden"
-            animate="visible"
-            transition={{ delay: 0.35 }}
-          >
+          <MotionDiv className="card" style={{ padding: 20, background: 'linear-gradient(135deg, hsla(247,75%,64%,0.12), hsla(32,98%,55%,0.08))' }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.35 }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Find your people</div>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>Connect with Gujaratis by shared roots, city, and industry.</p>

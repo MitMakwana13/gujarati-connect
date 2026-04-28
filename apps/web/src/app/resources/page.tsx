@@ -2,163 +2,169 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
 import AppNav from '@/components/AppNav';
+import { useResources, type ApiResource } from '@/hooks/useResources';
 import { stagger, fadeUp, buttonTap, reduced } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PostCardSkeleton } from '@/components/ui/Skeleton';
 
-const CATEGORIES = [
-  { id: 'housing', emoji: '🏠', label: 'Housing', count: 142 },
-  { id: 'airport', emoji: '✈️', label: 'Airport Pickups', count: 48 },
-  { id: 'visa', emoji: '📋', label: 'H-1B / Visa Help', count: 93 },
-  { id: 'student', emoji: '🎓', label: 'Student Support', count: 67 },
-  { id: 'jobs', emoji: '💼', label: 'Job Referrals', count: 85 },
-  { id: 'items', emoji: '🛋️', label: 'Used Items', count: 201 },
-];
+const CATEGORY_ICONS: Record<string, string> = {
+  housing: '🏠', roommate: '🛏️', airport_pickup: '✈️', used_items: '📦',
+  referral: '💼', student_help: '🎓', h1b_help: '📋', local_service: '🔧', other: '📌',
+};
+const CATEGORY_LABELS: Record<string, string> = {
+  housing: 'Housing', roommate: 'Roommate', airport_pickup: 'Airport Pickup',
+  used_items: 'Used Items', referral: 'Referral', student_help: 'Student Help',
+  h1b_help: 'H1B / Visa', local_service: 'Local Service', other: 'Other',
+};
+const CATEGORIES = Object.keys(CATEGORY_LABELS);
 
-interface Listing { id: string; title: string; category: string; city: string; author: string; age: string; price: string; saved: boolean; contacted: boolean; trending: boolean; }
-
-const MOCK_LISTINGS: Listing[] = [
-  { id: '1', title: '2BR available near BU (Sep)', category: 'housing', city: 'Boston, MA', author: 'Priya M.', age: '3h', price: '$1,200/mo', saved: false, contacted: false, trending: false },
-  { id: '2', title: 'Free airport pickup SFO — any airline', category: 'airport', city: 'San Francisco, CA', author: 'Raj P.', age: '8h', price: 'Free', saved: true, contacted: false, trending: true },
-  { id: '3', title: 'H-1B RFE responses — 3 successful', category: 'visa', city: 'Remote', author: 'Neel D.', age: '1d', price: 'Free consult', saved: false, contacted: false, trending: true },
-  { id: '4', title: 'IKEA desk + chair — moving out', category: 'items', city: 'New York, NY', author: 'Asha K.', age: '2d', price: '$80 OBO', saved: true, contacted: false, trending: false },
-  { id: '5', title: 'Software engineer referrals — Meta/Google', category: 'jobs', city: 'Remote', author: 'Chirag S.', age: '4h', price: 'Free', saved: false, contacted: false, trending: true },
-  { id: '6', title: 'GJ Student buddy system — BCU', category: 'student', city: 'Birmingham, UK', author: 'Foram P.', age: '6h', price: 'Free', saved: false, contacted: false, trending: false },
-];
-
-const CAT_COLORS: Record<string, string> = { housing: 'badge-saffron', airport: 'badge-teal', visa: 'badge-indigo', items: 'badge-indigo', jobs: 'badge-indigo', student: 'badge-teal' };
-const CAT_LABELS: Record<string, string> = { housing: 'Housing', airport: 'Airport Pickup', visa: 'H-1B Help', items: 'Used Items', jobs: 'Job Referrals', student: 'Student Support' };
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(diff / 86400000);
+  if (d === 0) return 'Today';
+  if (d === 1) return '1 day ago';
+  return `${d} days ago`;
+}
 
 export default function ResourcesPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const rm = useReducedMotion();
-  const [listings, setListings] = useState(MOCK_LISTINGS);
+
   const [search, setSearch] = useState('');
-  const [selectedCat, setSelectedCat] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  const { data: resources = [], isLoading: resLoading, error } = useResources();
 
   useEffect(() => { if (!isLoading && !user) router.push('/auth/login'); }, [user, isLoading, router]);
   if (isLoading || !user) return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><span style={{ fontSize: 28 }}>⏳</span></div>;
 
-  function toggleSave(id: string) { setListings(prev => prev.map(l => l.id === id ? { ...l, saved: !l.saved } : l)); }
-  function markContacted(id: string) { setListings(prev => prev.map(l => l.id === id ? { ...l, contacted: true } : l)); }
-
-  const shown = listings.filter(l => {
-    const s = !search || l.title.toLowerCase().includes(search.toLowerCase()) || l.city.toLowerCase().includes(search.toLowerCase());
-    const c = !selectedCat || l.category === selectedCat;
-    return s && c;
+  const shown = resources.filter(r => {
+    const s = !search || r.title.toLowerCase().includes(search.toLowerCase()) || r.description.toLowerCase().includes(search.toLowerCase());
+    const f = filter === 'All' || r.category === filter;
+    return s && f && r.is_active;
   });
 
   const staggerV = rm ? reduced.stagger : stagger.normal;
   const itemV = rm ? reduced.fadeUp : fadeUp;
 
+  function toggleSave(id: string) {
+    setSavedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   return (
     <div>
       <AppNav />
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 24px' }}>
         <motion.div variants={itemV} initial="hidden" animate="visible" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
           <div>
             <h1 style={{ fontSize: 36, marginBottom: 6 }}>Resource Board</h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Community-powered listings — housing, rides, referrals, and more</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Housing, airport pickups, H1B help, and more</p>
           </div>
           <motion.button id="post-resource-btn" className="btn btn-primary" whileTap={buttonTap} onClick={() => router.push('/resources/create')}>+ Post Listing</motion.button>
         </motion.div>
 
-        {/* Category grid */}
-        <motion.div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }} variants={staggerV} initial="hidden" animate="visible">
-          {CATEGORIES.map(cat => (
-            <motion.button
-              id={`cat-${cat.id}`}
-              key={cat.id}
-              variants={rm ? undefined : itemV}
-              whileHover={rm ? undefined : { y: -3, borderColor: 'var(--brand-saffron)' }}
-              whileTap={buttonTap}
-              onClick={() => setSelectedCat(selectedCat === cat.id ? '' : cat.id)}
-              className="card"
-              style={{
-                padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left',
-                border: selectedCat === cat.id ? '1px solid var(--brand-saffron)' : '1px solid var(--border)',
-                background: selectedCat === cat.id ? 'hsla(32,98%,55%,0.08)' : 'var(--bg-glass)',
-              }}
-            >
-              <span style={{ fontSize: 26 }}>{cat.emoji}</span>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{cat.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{cat.count} listings</div>
-              </div>
-            </motion.button>
-          ))}
+        <motion.div variants={itemV} initial="hidden" animate="visible" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+          <input id="resource-search" type="search" className="input" placeholder="🔍 Search listings…" value={search} onChange={e => setSearch(e.target.value)} />
+          <div className="chip-bar">
+            <button className={`chip${filter === 'All' ? ' active' : ''}`} onClick={() => setFilter('All')}>All</button>
+            {CATEGORIES.map(c => (
+              <button key={c} className={`chip${filter === c ? ' active' : ''}`} onClick={() => setFilter(c)}>
+                {CATEGORY_ICONS[c]} {CATEGORY_LABELS[c]}
+              </button>
+            ))}
+          </div>
         </motion.div>
 
-        <motion.input variants={itemV} initial="hidden" animate="visible" id="resource-search" type="search" className="input" placeholder="🔍 Search listings…" style={{ marginBottom: 22 }} value={search} onChange={e => setSearch(e.target.value)} />
-
-        {/* Trending */}
-        {!selectedCat && !search && (
-          <div style={{ marginBottom: 28 }}>
-            <div className="section-header"><h2 className="section-title" style={{ fontSize: 16 }}>🔥 Trending Now</h2></div>
-            <motion.div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} variants={staggerV} initial="hidden" animate="visible">
-              {listings.filter(l => l.trending).map(item => <ListingRow key={item.id} item={item} onSave={toggleSave} onContact={markContacted} rm={!!rm} itemV={itemV} />)}
-            </motion.div>
-            <div className="divider" style={{ margin: '20px 0' }} />
-            <div className="section-header"><h2 className="section-title" style={{ fontSize: 16 }}>All Listings</h2></div>
+        {resLoading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
+            {Array.from({ length: 6 }).map((_, i) => <PostCardSkeleton key={i} />)}
           </div>
-        )}
-
-        {shown.length > 0 ? (
-          <motion.div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} variants={staggerV} initial="hidden" animate="visible">
-            {shown.map(item => <ListingRow key={item.id} item={item} onSave={toggleSave} onContact={markContacted} rm={!!rm} itemV={itemV} />)}
-          </motion.div>
+        ) : error ? (
+          <EmptyState icon="⚠️" title="Could not load resources" description="Make sure the API server is running." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+        ) : shown.length === 0 ? (
+          <EmptyState icon="📋" title="No listings found" description={filter !== 'All' ? `No ${CATEGORY_LABELS[filter]} listings right now.` : 'No listings match your search.'} action={{ label: 'Clear filters', onClick: () => { setSearch(''); setFilter('All'); } }} />
         ) : (
-          <EmptyState icon="📋" title="No listings found" description="Try adjusting your search or clearing the filter." action={{ label: 'Clear filters', onClick: () => { setSearch(''); setSelectedCat(''); } }} />
+          <motion.div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }} variants={staggerV} initial="hidden" animate="visible">
+            {shown.map(r => (
+              <ResourceCard key={r.id} resource={r} isSaved={savedIds.has(r.id)} onSave={toggleSave} rm={!!rm} itemV={itemV} />
+            ))}
+          </motion.div>
         )}
       </div>
     </div>
   );
 }
 
-function ListingRow({ item, onSave, onContact, rm, itemV }: { item: Listing; onSave: (id: string) => void; onContact: (id: string) => void; rm: boolean; itemV: object }) {
+function ResourceCard({ resource: r, isSaved, onSave, rm, itemV }: {
+  resource: ApiResource;
+  isSaved: boolean;
+  onSave: (id: string) => void;
+  rm: boolean;
+  itemV: object;
+}) {
+  const [contactShown, setContactShown] = useState(false);
+
   return (
     <motion.div
-      id={`listing-${item.id}`}
+      id={`resource-card-${r.id}`}
       className="card"
       variants={rm ? undefined : itemV as Parameters<typeof motion.div>[0]['variants']}
-      whileHover={rm ? undefined : { y: -2, borderColor: 'var(--border-strong)' }}
-      style={{ padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'center' }}
+      whileHover={rm ? undefined : { y: -4, borderColor: 'var(--border-strong)' }}
+      style={{ padding: 22, position: 'relative' }}
     >
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>{item.title}</span>
-          <span className={`badge ${CAT_COLORS[item.category] ?? 'badge-indigo'}`} style={{ fontSize: 11 }}>{CAT_LABELS[item.category]}</span>
-          {item.trending && <span className="badge badge-saffron" style={{ fontSize: 11 }}>🔥 Trending</span>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 22 }}>{CATEGORY_ICONS[r.category] ?? '📌'}</span>
+          <span className="badge badge-indigo" style={{ fontSize: 11 }}>{CATEGORY_LABELS[r.category] ?? r.category}</span>
         </div>
-        <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-          <span>📍 {item.city}</span>
-          <span>👤 {item.author}</span>
-          <span>🕐 {item.age}</span>
-          <span style={{ color: 'var(--brand-saffron)', fontWeight: 600 }}>💰 {item.price}</span>
-        </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-        <motion.button
-          id={`contact-${item.id}`}
-          className={`btn btn-sm ${item.contacted ? 'btn-ghost' : 'btn-primary'}`}
-          onClick={() => onContact(item.id)}
-          whileTap={buttonTap}
-          style={{ color: item.contacted ? 'var(--brand-teal)' : undefined }}
-        >
-          {item.contacted ? '✓ Contacted' : 'Contact'}
-        </motion.button>
-        <motion.button
-          id={`save-${item.id}`}
+        <button
+          id={`save-${r.id}`}
           className="btn btn-ghost btn-sm"
-          onClick={() => onSave(item.id)}
-          whileTap={buttonTap}
-          style={{ color: item.saved ? 'var(--brand-saffron)' : 'var(--text-muted)' }}
+          style={{ color: isSaved ? 'var(--brand-saffron)' : 'var(--text-muted)', fontSize: 18, padding: '4px 6px', lineHeight: 1 }}
+          onClick={() => onSave(r.id)}
+          title={isSaved ? 'Saved locally' : 'Save locally'}
         >
-          {item.saved ? '🔖 Saved' : '🔖 Save'}
-        </motion.button>
+          {isSaved ? '★' : '☆'}
+        </button>
+      </div>
+
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, lineHeight: 1.4 }}>{r.title}</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>{r.description.substring(0, 150)}{r.description.length > 150 ? '…' : ''}</p>
+
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {r.price && <span>💰 ${parseFloat(r.price).toLocaleString()} {r.currency}</span>}
+        <span>🕒 {timeAgo(r.created_at)}</span>
+        {r.author_display_name && <span>👤 {r.author_display_name}</span>}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        {contactShown ? (
+          <div style={{ fontSize: 13, padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--r-sm)', flex: 1 }}>
+            {r.contact_detail ? (
+              <span>{r.contact_method === 'email' ? '📧' : r.contact_method === 'phone' ? '📱' : '💬'} {r.contact_detail}</span>
+            ) : (
+              <span style={{ color: 'var(--text-muted)' }}>Contact via in-app message</span>
+            )}
+          </div>
+        ) : (
+          <motion.button
+            id={`contact-${r.id}`}
+            className="btn btn-primary btn-sm"
+            whileTap={buttonTap}
+            onClick={() => setContactShown(true)}
+          >
+            {r.contact_method === 'in_app' ? '💬 Contact' : r.contact_method === 'email' ? '📧 Email' : '📱 Call'}
+          </motion.button>
+        )}
       </div>
     </motion.div>
   );

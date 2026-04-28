@@ -1,38 +1,49 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
+// ── Normaliser ───────────────────────────────────────────────
+// Maps raw API response to the shape the Feed UI expects.
+function normalisePost(p: any) {
+  return {
+    id: p.id as string,
+    author: {
+      name: (p.author_display_name as string) ?? 'Unknown',
+      avatar: (p.author_avatar_url as string) ?? '🧑',
+      city: 'Global',
+      initials: ((p.author_display_name as string) ?? 'U')
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .substring(0, 2),
+    },
+    body: p.body as string,
+    time: new Date(p.created_at as string).toLocaleDateString(),
+    // Canonical UI fields — used by both render and optimistic update
+    likes: (p.like_count as number) ?? 0,
+    liked: p.my_reaction === 'like',
+    comments: (p.comment_count as number) ?? 0,
+    tags: [] as string[],
+    group: p.group_id ? 'A Group' : undefined,
+  };
+}
+
 export function usePosts() {
   return useQuery({
     queryKey: ['posts'],
     queryFn: async () => {
       const { data } = await api.getPosts();
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        author: {
-          name: p.author_display_name,
-          avatar: p.author_avatar_url || '🧑',
-          city: 'Global', // Would come from profile join
-          initials: p.author_display_name?.split(' ').map((n: string) => n[0]).join('').substring(0,2) || 'U'
-        },
-        body: p.body,
-        time: new Date(p.created_at).toLocaleDateString(),
-        likes: p.like_count,
-        comments: p.comment_count,
-        tags: [], // Could parse from body 
-        liked: p.my_reaction === 'like',
-        group: p.group_id ? 'A Group' : undefined,
-      }));
+      return (data ?? []).map(normalisePost);
     },
   });
 }
 
 export function useCreatePost() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: api.createPost,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
   });
 }
@@ -44,35 +55,37 @@ export function useToggleLike() {
     mutationFn: async ({ id, isCurrentlyLiked }: { id: string; isCurrentlyLiked: boolean }) => {
       return isCurrentlyLiked ? api.unlikePost(id) : api.likePost(id);
     },
+
     onMutate: async ({ id, isCurrentlyLiked }) => {
-      // Optimistic Update
       await queryClient.cancelQueries({ queryKey: ['posts'] });
       const previousPosts = queryClient.getQueryData(['posts']);
 
+      // Optimistic update — writes to the SAME fields the UI reads (likes + liked)
       queryClient.setQueryData(['posts'], (old: any) => {
-        if (!old) return old;
+        if (!Array.isArray(old)) return old;
         return old.map((post: any) => {
-          if (post.id === id) {
-            return {
-              ...post,
-              my_reaction: isCurrentlyLiked ? null : 'like',
-              like_count: isCurrentlyLiked ? Math.max(0, post.like_count - 1) : post.like_count + 1,
-            };
-          }
-          return post;
+          if (post.id !== id) return post;
+          return {
+            ...post,
+            liked: !isCurrentlyLiked,
+            likes: isCurrentlyLiked
+              ? Math.max(0, (post.likes as number) - 1)
+              : (post.likes as number) + 1,
+          };
         });
       });
 
       return { previousPosts };
     },
-    onError: (err, variables, context) => {
-      // Rollback
+
+    onError: (_err, _variables, context) => {
       if (context?.previousPosts) {
         queryClient.setQueryData(['posts'], context.previousPosts);
       }
     },
+
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      void queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
   });
 }

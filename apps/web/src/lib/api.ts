@@ -35,7 +35,7 @@ export const fetcher = async (url: string, options?: RequestInit) => {
 };
 
 export const api = {
-  // Posts
+  // ── Posts ───────────────────────────────────────────────────
   getPosts: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetcher(`/posts${qs}`);
@@ -45,9 +45,9 @@ export const api = {
   likePost: (id: string) => fetcher(`/posts/${id}/react`, { method: 'POST', body: JSON.stringify({ reaction: 'like' }) }),
   unlikePost: (id: string) => fetcher(`/posts/${id}/react`, { method: 'DELETE' }),
 
-  // Groups
-  getGroups: (params?: { tag?: string; communityId?: string }) => {
-    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+  // ── Groups ──────────────────────────────────────────────────
+  getGroups: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetcher(`/groups${qs}`);
   },
   getGroup: (slug: string) => fetcher(`/groups/${slug}`),
@@ -55,45 +55,46 @@ export const api = {
   joinGroup: (id: string) => fetcher(`/groups/${id}/join`, { method: 'POST', body: '{}' }),
   leaveGroup: (id: string) => fetcher(`/groups/${id}/leave`, { method: 'POST', body: '{}' }),
 
-  // Events
+  // ── Events ──────────────────────────────────────────────────
   getEvents: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetcher(`/events${qs}`);
   },
-  getEvent: (slug: string) => fetcher(`/events/${slug}`),
+  getEvent: (id: string) => fetcher(`/events/${id}`),
   createEvent: (body: unknown) => fetcher('/events', { method: 'POST', body: JSON.stringify(body) }),
   rsvpEvent: (id: string, status: string) =>
     fetcher(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
+  cancelRsvp: (id: string) => fetcher(`/events/${id}/rsvp`, { method: 'DELETE' }),
 
-  // Resources
+  // ── Resources ───────────────────────────────────────────────
   getResources: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetcher(`/resources${qs}`);
   },
   createResource: (body: unknown) => fetcher('/resources', { method: 'POST', body: JSON.stringify(body) }),
 
-  // Restaurants
-  getRestaurants: (params?: Record<string, string>) => {
+  // ── Users / Profile ─────────────────────────────────────────
+  getMyProfile: () => fetcher('/users/me'),
+  updateProfile: (body: unknown) => fetcher('/users/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  getDiscoverUsers: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return fetcher(`/restaurants${qs}`);
-  },
-  getRestaurant: (slug: string) => fetcher(`/restaurants/${slug}`),
-
-  // Discover / Nearby
-  getNearbyPeople: (params: Record<string, string | number>) => {
-    const qs = '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
-    return fetcher(`/discover/nearby/people${qs}`);
-  },
-  getNearbyGroups: (params: Record<string, string | number>) => {
-    const qs = '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
-    return fetcher(`/discover/nearby/groups${qs}`);
-  },
-  getNearbyEvents: (params: Record<string, string | number>) => {
-    const qs = '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
-    return fetcher(`/discover/nearby/events${qs}`);
+    return fetcher(`/users/discover${qs}`);
   },
 
-  // Messages
+  // ── Notifications ───────────────────────────────────────────
+  getNotifications: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return fetcher(`/notifications${qs}`);
+  },
+  markNotificationRead: (id: string) => fetcher(`/notifications/${id}/read`, { method: 'PATCH', body: '{}' }),
+  markAllNotificationsRead: () => fetcher('/notifications/read-all', { method: 'PATCH', body: '{}' }),
+
+  // ── Messages ────────────────────────────────────────────────
   getConversations: () => fetcher('/messages/conversations'),
-  getMessages: (id: string) => fetcher(`/messages/conversations/${id}`),
+  getConversationMessages: (id: string) => fetcher(`/messages/conversations/${id}`),
+  sendMessage: (conversationId: string, body: string) =>
+    fetcher(`/messages/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body, messageType: 'text' }),
+    }),
 };
