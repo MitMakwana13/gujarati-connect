@@ -1,3 +1,4 @@
+import 'dotenv/config';
 /**
  * config/index.ts — Environment configuration
  *

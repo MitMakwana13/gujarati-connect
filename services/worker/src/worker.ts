@@ -1,3 +1,4 @@
+import 'dotenv/config';
 /**
  * worker.ts — Worker service entry point
  *
