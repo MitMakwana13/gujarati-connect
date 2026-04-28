@@ -32,7 +32,6 @@ interface RegisterData {
   email: string;
   password: string;
   userType: string;
-  otp: string;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);

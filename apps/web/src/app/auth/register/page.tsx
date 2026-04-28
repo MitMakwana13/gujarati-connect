@@ -13,41 +13,123 @@ const USER_TYPES = [
   { value: 'organizer', label: '🎉 Community Organizer' },
 ];
 
+type Step = 'form' | 'verify';
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
+  const [step, setStep] = useState<Step>('form');
   const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', password: '', userType: '', otp: '',
+    firstName: '', lastName: '', email: '', password: '', userType: '',
   });
-  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   function update(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function sendOtp() {
-    if (!form.email) { setError('Enter your email first'); return; }
-    setOtpLoading(true);
-    await new Promise((r) => setTimeout(r, 700)); // simulate
-    setOtpSent(true);
-    setOtpLoading(false);
-    setError('');
-  }
-
-  async function handleSubmit(e: FormEvent) {
+  /** Step 1: Register → API creates user + generates OTP stored in Redis */
+  async function handleRegister(e: FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     const result = await register(form);
     setLoading(false);
     if (result.ok) {
-      router.push('/feed');
+      setStep('verify');
     } else {
       setError(result.error ?? 'Registration failed');
     }
+  }
+
+  /** Step 2: Verify OTP → API validates, returns tokens, auto-login */
+  async function handleVerify(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (otp.length !== 6) { setError('Enter the 6-digit code.'); return; }
+    setVerifyLoading(true);
+    try {
+      const res = await fetch('/api/backend/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, otp }),
+      });
+      const json = await res.json() as {
+        data?: { user: Record<string, unknown>; tokens: { accessToken: string } };
+        errors?: { message: string }[];
+      };
+
+      if (!res.ok) {
+        setError(json.errors?.[0]?.message ?? 'Invalid or expired code. Check your API console for the OTP.');
+        return;
+      }
+
+      // Save token and redirect — same pattern as login
+      const { tokens } = json.data!;
+      try { sessionStorage.setItem('gg_access_token', tokens.accessToken); } catch { /* incognito */ }
+      router.push('/feed');
+    } catch {
+      setError('Network error — is the API running?');
+    } finally {
+      setVerifyLoading(false);
+    }
+  }
+
+  if (step === 'verify') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+        <div className="orb orb-teal" style={{ width: 400, height: 400, top: -80, right: -60 }} />
+        <div className="orb orb-indigo" style={{ width: 350, height: 350, bottom: -80, left: -60 }} />
+
+        <div className="card animate-fade-up" style={{ width: '100%', maxWidth: 440, padding: 40, position: 'relative', zIndex: 1 }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📨</div>
+            <h1 style={{ fontSize: 26, marginBottom: 8 }}>Verify your email</h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>
+              We generated a verification code for <strong>{form.email}</strong>.
+            </p>
+            <div style={{ marginTop: 12, padding: '10px 14px', background: 'hsla(247,75%,64%,0.1)', border: '1px solid hsla(247,75%,64%,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--brand-indigo)' }}>
+              💡 In development, the OTP is printed in the <strong>API server console</strong>.
+            </div>
+          </div>
+
+          <form id="verify-form" onSubmit={(e) => { void handleVerify(e); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {error && (
+              <div style={{ padding: '10px 14px', background: 'hsla(0,70%,50%,0.1)', border: '1px solid hsla(0,70%,50%,0.3)', borderRadius: 8, fontSize: 14, color: '#f87171' }}>
+                {error}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="label" htmlFor="otp">6-digit verification code</label>
+              <input
+                id="otp"
+                type="text"
+                className="input"
+                inputMode="numeric"
+                placeholder="000000"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                style={{ letterSpacing: 8, textAlign: 'center', fontFamily: 'monospace', fontSize: 22 }}
+                autoFocus
+              />
+            </div>
+
+            <button id="verify-submit" type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 4, opacity: verifyLoading ? 0.7 : 1 }} disabled={verifyLoading || otp.length !== 6}>
+              {verifyLoading ? 'Verifying…' : 'Verify & Sign In →'}
+            </button>
+
+            <button type="button" className="btn btn-ghost btn-sm" style={{ width: '100%' }} onClick={() => { setStep('form'); setError(''); setOtp(''); }}>
+              ← Back to registration
+            </button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -60,12 +142,9 @@ export default function RegisterPage() {
           <Link href="/" className="nav-logo" style={{ display: 'block', marginBottom: 8 }}>gujarati global</Link>
           <h1 style={{ fontSize: 26, marginBottom: 6 }}>Join your community</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Connect with Gujaratis worldwide — free forever</p>
-          <div style={{ marginTop: 10, padding: '8px 12px', background: 'hsla(175,80%,42%,0.1)', border: '1px solid hsla(175,80%,42%,0.3)', borderRadius: 8, fontSize: 12, color: 'var(--brand-teal)' }}>
-            Demo mode: OTP code is <strong>123456</strong>
-          </div>
         </div>
 
-        <form id="register-form" onSubmit={(e) => { void handleSubmit(e); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form id="register-form" onSubmit={(e) => { void handleRegister(e); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {error && (
             <div style={{ padding: '10px 14px', background: 'hsla(0,70%,50%,0.1)', border: '1px solid hsla(0,70%,50%,0.3)', borderRadius: 8, fontSize: 14, color: '#f87171' }}>
               {error}
@@ -90,7 +169,7 @@ export default function RegisterPage() {
 
           <div className="form-group">
             <label className="label" htmlFor="reg-password">Password</label>
-            <input id="reg-password" type="password" className="input" placeholder="At least 8 characters" value={form.password} onChange={(e) => update('password', e.target.value)} required autoComplete="new-password" />
+            <input id="reg-password" type="password" className="input" placeholder="At least 8 characters" value={form.password} onChange={(e) => update('password', e.target.value)} required autoComplete="new-password" minLength={8} />
           </div>
 
           <div className="form-group">
@@ -99,26 +178,6 @@ export default function RegisterPage() {
               <option value="">Select your profile type</option>
               {USER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-          </div>
-
-          <div className="form-group">
-            <label className="label" htmlFor="otp">Verification code</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                id="otp"
-                type="text"
-                className="input"
-                placeholder="123456"
-                maxLength={6}
-                value={form.otp}
-                onChange={(e) => update('otp', e.target.value.replace(/\D/g, ''))}
-                style={{ letterSpacing: 6, textAlign: 'center', fontFamily: 'monospace', fontSize: 18 }}
-              />
-              <button id="send-otp" type="button" className="btn btn-secondary" style={{ flexShrink: 0 }} onClick={() => { void sendOtp(); }} disabled={otpLoading}>
-                {otpSent ? '✓ Sent' : otpLoading ? '…' : 'Send OTP'}
-              </button>
-            </div>
-            {otpSent && <p style={{ fontSize: 12, color: 'var(--brand-teal)', marginTop: 4 }}>OTP sent! In demo mode use: <strong>123456</strong></p>}
           </div>
 
           <button id="register-submit" type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 4, opacity: loading ? 0.7 : 1 }} disabled={loading}>
