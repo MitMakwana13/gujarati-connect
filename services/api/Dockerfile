@@ -1,50 +1,38 @@
 # ===========================================================
-# API service Dockerfile — multi-stage build
+# API service Dockerfile — simplified two-stage build
 # ===========================================================
-# Build from repo root: docker build -f services/api/Dockerfile -t gg-api .
-# Railway auto-detects this file if set in railway.json.
+# Stage 1: install all deps + build TypeScript
+# Stage 2: production runtime (copies only built dist)
 # ===========================================================
 
-# ---- Stage 1: base image with pnpm --------------------------
-FROM node:20-alpine AS base
+# ---- Stage 1: build -----------------------------------------
+FROM node:20-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
 WORKDIR /app
 
-# ---- Stage 2: install ALL deps (inc. dev) -------------------
-FROM base AS deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Copy workspace manifests first (layer cache)
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json tsconfig.json turbo.json ./
 COPY packages/ ./packages/
-COPY services/api/package.json ./services/api/
+COPY services/api/ ./services/api/
+
+# Install ALL deps (dev included) — pnpm wires up workspace symlinks correctly
 RUN pnpm install --frozen-lockfile
 
-# ---- Stage 3: build TypeScript ------------------------------
-FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages ./packages
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json tsconfig.json turbo.json ./
-COPY services/api/ ./services/api/
+# Build the API service
 RUN pnpm --filter @gujarati-global/api build
 
-# ---- Stage 4: production deps only --------------------------
-FROM base AS prod-deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/ ./packages/
-COPY services/api/package.json ./services/api/
-RUN pnpm install --frozen-lockfile --prod
-
-# ---- Stage 5: final runtime image ---------------------------
+# ---- Stage 2: production runtime ----------------------------
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Install dumb-init for proper signal handling (graceful shutdown)
 RUN apk add --no-cache dumb-init
-
-# Non-root user for security
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-COPY --from=prod-deps --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=prod-deps --chown=nodejs:nodejs /app/packages ./packages
+# Copy the full node_modules (workspace-aware) + built dist
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/packages ./packages
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/dist ./services/api/dist
+COPY --from=builder --chown=nodejs:nodejs /app/services/api/node_modules ./services/api/node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/package.json ./services/api/
 
 USER nodejs
@@ -54,8 +42,7 @@ ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000
 
-# Health check hits /health which pings DB + Redis
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:4000/health || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
