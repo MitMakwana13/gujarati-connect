@@ -154,6 +154,9 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.send(neutralResponse);
       }
 
+      // Set cooldown before DB lookup to protect all paths equally.
+      await app.redis.setex(cooldownKey, 60, '1');
+
       const result = await app.db.query<{ id: string; email_verified: boolean }>(
         'SELECT id, email_verified FROM users WHERE email = $1',
         [normalizedEmail],
@@ -161,7 +164,6 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       
       const user = result.rows[0];
       if (user && !user.email_verified) {
-        await app.redis.setex(cooldownKey, 60, '1');
         const otp = await generateAndStoreOtp(app, normalizedEmail);
         await emailService.sendOtpEmail(normalizedEmail, otp, app.log);
       }
@@ -203,7 +205,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       // Delete OTP after successful verification
       await app.redis.del(`${OTP_PREFIX}${normalizedEmail}`);
 
-      const tokens = await app.generateTokens(user.id, email, user.role as UserRole);
+      const tokens = await app.generateTokens(user.id, normalizedEmail, user.role as UserRole);
 
       // Update last_login_at
       await app.db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
