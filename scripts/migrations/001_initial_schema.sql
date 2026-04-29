@@ -219,7 +219,6 @@ CREATE TABLE posts (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT posts_must_have_context CHECK (group_id IS NOT NULL OR community_id IS NOT NULL),
     CONSTRAINT posts_must_have_content CHECK (body IS NOT NULL OR array_length(media_urls, 1) > 0 OR link_url IS NOT NULL)
 );
 

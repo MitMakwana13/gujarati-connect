@@ -48,11 +48,13 @@ export default async function groupRoutes(app: FastifyInstance): Promise<void> {
         `SELECT g.id, g.name, g.slug, g.description, g.cover_image_url, g.visibility,
                 g.join_policy, g.member_count, g.tags, g.created_at,
                 p.display_name AS creator_name,
-                json_build_object(
-                  'role', gm.role,
-                  'status', gm.status,
-                  'joined_at', gm.joined_at
-                ) FILTER (WHERE gm.user_id IS NOT NULL) AS "myMembership"
+                CASE WHEN gm.user_id IS NOT NULL THEN
+                  json_build_object(
+                    'role', gm.role,
+                    'status', gm.status,
+                    'joined_at', gm.joined_at
+                  )
+                ELSE NULL END AS "myMembership"
          FROM groups g
          JOIN users u ON u.id = g.created_by
          JOIN profiles p ON p.user_id = u.id
