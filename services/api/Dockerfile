@@ -42,6 +42,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/packages/types/dist ./packages/ty
 COPY --from=builder --chown=nodejs:nodejs /app/packages/types/package.json ./packages/types/
 COPY --from=builder --chown=nodejs:nodejs /app/packages/validators/dist ./packages/validators/dist
 COPY --from=builder --chown=nodejs:nodejs /app/packages/validators/package.json ./packages/validators/
+COPY --from=builder --chown=nodejs:nodejs /app/packages/validators/node_modules ./packages/validators/node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/dist ./services/api/dist
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/node_modules ./services/api/node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/package.json ./services/api/
