@@ -26,6 +26,25 @@ import type { UserRole } from '@gujarati-global/types';
 
 const OTP_PREFIX = 'otp:';
 
+const REFRESH_COOKIE_NAME = 'gg_refresh_token';
+const REFRESH_COOKIE_PATH = process.env['REFRESH_COOKIE_PATH'] ?? '/api/backend/auth';
+
+function setRefreshCookie(reply: any, token: string) {
+  reply.setCookie(REFRESH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'strict',
+    path: REFRESH_COOKIE_PATH,
+    maxAge: 60 * 60 * 24 * 30, // 30 days
+  });
+}
+
+function clearRefreshCookie(reply: any) {
+  reply.clearCookie(REFRESH_COOKIE_NAME, {
+    path: REFRESH_COOKIE_PATH,
+  });
+}
+
 export default async function authRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /csrf ─────────────────────────────────────────────
   app.get(
@@ -149,8 +168,10 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
 
       const profile = await getPublicProfile(app, user.id);
 
+      setRefreshCookie(reply, tokens.refreshToken);
+
       return reply.send({
-        data: { user: profile, tokens },
+        data: { user: profile, tokens: { accessToken: tokens.accessToken } },
       });
     },
   );
@@ -212,8 +233,10 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
         req,
       });
 
+      setRefreshCookie(reply, tokens.refreshToken);
+
       return reply.send({
-        data: { user: profile, tokens },
+        data: { user: profile, tokens: { accessToken: tokens.accessToken } },
       });
     },
   );
@@ -225,7 +248,11 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       schema: { tags: ['auth'], summary: 'Refresh access token' },
     },
     async (req, reply) => {
-      const { refreshToken } = refreshTokenSchema.parse(req.body);
+      const refreshToken = req.cookies[REFRESH_COOKIE_NAME];
+
+      if (!refreshToken) {
+        throw new AppError('MISSING_REFRESH_TOKEN', 'No refresh token provided', 401);
+      }
 
       let payload;
       try {
@@ -244,9 +271,21 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
         throw new AppError('ACCOUNT_INACTIVE', 'Account is not active', 403);
       }
 
+      // Revoke the old refresh token to implement true rotation
+      if (payload.jti) {
+        await app.db.query(
+          `INSERT INTO revoked_tokens (jti, user_id, expires_at)
+           VALUES ($1, $2, to_timestamp($3))
+           ON CONFLICT (jti) DO NOTHING`,
+          [payload.jti, payload.sub, payload.exp ?? (Date.now() / 1000 + 86400)],
+        );
+      }
+
       const tokens = await app.generateTokens(payload.sub!, user.email, user.role as UserRole);
 
-      return reply.send({ data: { tokens } });
+      setRefreshCookie(reply, tokens.refreshToken);
+
+      return reply.send({ data: { tokens: { accessToken: tokens.accessToken } } });
     },
   );
 
@@ -254,32 +293,33 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/logout',
     {
-      onRequest: [app.authenticate],
       schema: { tags: ['auth'], summary: 'Logout and invalidate refresh token' },
     },
     async (req, reply) => {
-      const { refreshToken } = (req.body as { refreshToken?: string });
+      const refreshToken = req.cookies[REFRESH_COOKIE_NAME];
 
       if (refreshToken) {
         try {
           const payload = await app.verifyRefreshToken(refreshToken);
           if (payload.jti) {
-            // Insert into blocklist — auth plugin checks this on every authenticate call
+            // Insert into blocklist
             await app.db.query(
               `INSERT INTO revoked_tokens (jti, user_id, expires_at)
                VALUES ($1, $2, to_timestamp($3))
                ON CONFLICT (jti) DO NOTHING`,
-              [payload.jti, req.userId, payload.exp ?? (Date.now() / 1000 + 86400)],
+              [payload.jti, payload.sub, payload.exp ?? (Date.now() / 1000 + 86400)],
             );
             // Prune expired entries to keep the table lean
             await app.db.query('DELETE FROM revoked_tokens WHERE expires_at < NOW()');
           }
         } catch {
-          // If token is already invalid/expired, logout silently — that is fine
+          // If token is already invalid/expired, logout silently
         }
       }
 
-      req.log.info({ userId: req.userId }, '[auth] User logged out');
+      clearRefreshCookie(reply);
+
+      req.log.info('[auth] User logged out');
       return reply.send({ data: { message: 'Logged out successfully' } });
     },
   );

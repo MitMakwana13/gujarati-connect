@@ -1,11 +1,9 @@
-const TOKEN_KEY = 'gg_access_token';
+import { getAccessToken, setAccessToken, clearAccessToken } from './auth-token';
 
-function getStoredToken(): string | null {
-  try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
-}
+let refreshPromise: Promise<string | null> | null = null;
 
-export const fetcher = async (url: string, options?: RequestInit) => {
-  const token = getStoredToken();
+async function executeFetch(url: string, options?: RequestInit, isRetry = false): Promise<any> {
+  const token = getAccessToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -19,7 +17,40 @@ export const fetcher = async (url: string, options?: RequestInit) => {
   const res = await fetch(`/api/backend${url}`, {
     ...options,
     headers,
+    credentials: 'include', // Forward cookies to proxy
   });
+
+  if (res.status === 401 && !isRetry) {
+    if (!refreshPromise) {
+      refreshPromise = fetch(`/api/backend/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      })
+        .then(async (refreshRes) => {
+          if (!refreshRes.ok) throw new Error('Refresh failed');
+          const data = await refreshRes.json();
+          const newToken = data.data.tokens.accessToken;
+          setAccessToken(newToken);
+          return newToken;
+        })
+        .catch(() => {
+          clearAccessToken();
+          if (typeof window !== 'undefined') window.location.href = '/auth/login';
+          return null;
+        })
+        .finally(() => {
+          refreshPromise = null;
+        });
+    }
+
+    const newToken = await refreshPromise;
+    if (newToken) {
+      return executeFetch(url, options, true);
+    } else {
+      throw new Error('Session expired');
+    }
+  }
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await res.json() : await res.text();
@@ -32,7 +63,9 @@ export const fetcher = async (url: string, options?: RequestInit) => {
   }
 
   return data;
-};
+}
+
+export const fetcher = executeFetch;
 
 export const api = {
   // ── Posts ───────────────────────────────────────────────────

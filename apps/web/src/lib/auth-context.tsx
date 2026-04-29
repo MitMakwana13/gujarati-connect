@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { setAccessToken, clearAccessToken } from './auth-token';
 
 export interface AuthUser {
   id: string;
@@ -37,8 +38,6 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const TOKEN_KEY = 'gg_access_token';
-
 function makeInitials(name: string): string {
   return name
     .split(' ')
@@ -59,36 +58,34 @@ function parseUser(raw: Record<string, unknown>): AuthUser {
   };
 }
 
-/** Store access token in sessionStorage so it survives page refreshes within a tab */
-function saveToken(token: string) {
-  try { sessionStorage.setItem(TOKEN_KEY, token); } catch { /* incognito */ }
-}
-function loadToken(): string | null {
-  try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
-}
-function clearToken() {
-  try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // On mount: restore session by validating stored token against /me
+  // App boot rehydration: call /refresh to restore session from HttpOnly cookie
   useEffect(() => {
-    const token = loadToken();
-    if (!token) { setIsLoading(false); return; }
-
-    void fetch('/api/backend/users/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch('/api/backend/auth/refresh', { method: 'POST', credentials: 'include' })
       .then(async (res) => {
-        if (!res.ok) { clearToken(); return; }
-        const json = await res.json() as { data: Record<string, unknown> };
-        if (json?.data) setUser(parseUser(json.data));
+        if (!res.ok) throw new Error('Refresh failed');
+        const json = await res.json();
+        const token = json?.data?.tokens?.accessToken;
+        if (!token) throw new Error('No token returned');
+        
+        setAccessToken(token);
+
+        // Fetch user data with the new token
+        const userRes = await fetch('/api/backend/users/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!userRes.ok) throw new Error('Failed to fetch user');
+        const userJson = await userRes.json();
+        if (userJson?.data) setUser(parseUser(userJson.data));
       })
-      .catch(() => clearToken())
+      .catch(() => {
+        clearAccessToken();
+        setUser(null);
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -110,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const { user: rawUser, tokens } = json.data!;
-      saveToken(tokens.accessToken);
+      setAccessToken(tokens.accessToken);
       setUser(parseUser(rawUser));
       return { ok: true };
     } catch {
@@ -154,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: json.errors?.[0]?.message ?? 'Invalid or expired code.' };
       }
       const { user: rawUser, tokens } = json.data!;
-      saveToken(tokens.accessToken);
+      setAccessToken(tokens.accessToken);
       setUser(parseUser(rawUser));
       return { ok: true };
     } catch {
@@ -163,9 +160,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    clearToken();
-    setUser(null);
-    router.push('/');
+    fetch('/api/backend/auth/logout', { method: 'POST', credentials: 'include' })
+      .finally(() => {
+        clearAccessToken();
+        setUser(null);
+        router.push('/');
+      });
   }, [router]);
 
   return (
