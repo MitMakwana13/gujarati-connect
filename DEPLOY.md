@@ -169,7 +169,7 @@ After adding custom domains:
 - **Email delivery** — configure a real SMTP provider (Resend, Postmark). Without this, OTP only logs to console.
 - **Auth session hardening** — move refresh token to `HttpOnly` cookie; access token should be memory-only, not `sessionStorage`.
 - **Content moderation** — moderation scaffolding exists but automated scanning is not wired.
-- **Backups** — enable Supabase daily backups (free tier included).
+- **Backups** — enable Railway Postgres backups/snapshots, and run `pg_dump` before major migrations.
 - **Privacy policy + terms** — required before collecting emails in EU/California.
 
 ---
