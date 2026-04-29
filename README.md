@@ -16,7 +16,7 @@ A diaspora community platform for Gujaratis worldwide — connecting people acro
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js 15 (App Router) |
-| Backend API | Fastify 5 |
+| Backend API | Fastify 4 |
 | Background jobs | Node.js worker service |
 | Database | Supabase Postgres |
 | Cache / queues | Upstash Redis |
