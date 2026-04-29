@@ -46,7 +46,6 @@ COPY --from=prod-deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=prod-deps --chown=nodejs:nodejs /app/packages ./packages
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/dist ./services/api/dist
 COPY --from=builder --chown=nodejs:nodejs /app/services/api/package.json ./services/api/
-COPY --chown=nodejs:nodejs scripts/ ./scripts/
 
 USER nodejs
 WORKDIR /app/services/api
