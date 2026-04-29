@@ -83,7 +83,7 @@ The migrator is idempotent — safe to re-run. All SQL files from `scripts/migra
    ```
    NODE_ENV=production
    PORT=4000
-   DATABASE_URL=<supabase-url>?sslmode=require
+   DATABASE_URL=<railway-postgres-url>
    REDIS_URL=rediss://default:PASSWORD@HOSTNAME.upstash.io:6379
    JWT_ACCESS_SECRET=<openssl rand -base64 32>
    JWT_REFRESH_SECRET=<openssl rand -base64 32>
@@ -180,4 +180,4 @@ After adding custom domains:
 
 **API/Worker:** Railway → Deployments → previous good build → "Redeploy".
 
-**Database:** Supabase has point-in-time recovery on paid plans. Test your restore path before you need it.
+**Database:** Use Railway Postgres backups/snapshots, or export with `pg_dump` before major migrations. Test your restore path before you need it.
