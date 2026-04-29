@@ -4,27 +4,30 @@ import { api } from '@/lib/api';
 // ── Normaliser ───────────────────────────────────────────────
 // Maps raw API response to the shape the Feed UI expects.
 function normalisePost(p: any) {
+  const displayName = (p.author_display_name as string) ?? 'Unknown';
+
   return {
     id: p.id as string,
     author: {
-      name: (p.author_display_name as string) ?? 'Unknown',
-      avatar: (p.author_avatar_url as string) ?? '🧑',
+      name: displayName,
+      avatar: (p.author_avatar_url as string | null) ?? null,
       city: (p.author_city as string | null) ?? '',
-      initials: ((p.author_display_name as string) ?? 'U')
+      initials: displayName
         .split(' ')
         .map((n: string) => n[0])
         .join('')
-        .substring(0, 2),
+        .substring(0, 2)
+        .toUpperCase(),
     },
-    body: p.body as string,
+    body: (p.body as string | null) ?? '',
+    mediaUrls: ((p.media_urls as string[] | null) ?? []) as string[],
     time: new Date(p.created_at as string).toLocaleDateString(),
-    // Canonical UI fields — used by both render and optimistic update
+    createdAt: p.created_at as string,
     likes: (p.like_count as number) ?? 0,
     liked: p.my_reaction === 'like',
     comments: (p.comment_count as number) ?? 0,
     tags: [] as string[],
     group: (p.group_name as string | null) ?? undefined,
-    mediaUrls: (p.media_urls as string[] | null) ?? [],
   };
 }
 
@@ -61,7 +64,6 @@ export function useToggleLike() {
       await queryClient.cancelQueries({ queryKey: ['posts'] });
       const previousPosts = queryClient.getQueryData(['posts']);
 
-      // Optimistic update — writes to the SAME fields the UI reads (likes + liked)
       queryClient.setQueryData(['posts'], (old: any) => {
         if (!Array.isArray(old)) return old;
         return old.map((post: any) => {

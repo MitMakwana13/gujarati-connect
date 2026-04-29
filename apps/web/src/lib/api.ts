@@ -2,6 +2,39 @@ import { getAccessToken, setAccessToken, clearAccessToken } from './auth-token';
 
 let refreshPromise: Promise<string | null> | null = null;
 
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = fetch('/api/backend/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    })
+      .then(async (refreshRes) => {
+        if (!refreshRes.ok) throw new Error('Refresh failed');
+        const data = await refreshRes.json();
+        const newToken = data?.data?.tokens?.accessToken;
+        if (!newToken) throw new Error('Refresh returned no access token');
+        setAccessToken(newToken);
+        return newToken;
+      })
+      .catch(() => {
+        clearAccessToken();
+        if (typeof window !== 'undefined') window.location.href = '/auth/login';
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+async function parseResponse(res: Response): Promise<unknown> {
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  return isJson ? res.json() : res.text();
+}
+
 async function executeFetch(url: string, options?: RequestInit, isRetry = false): Promise<any> {
   const token = getAccessToken();
 
@@ -17,52 +50,58 @@ async function executeFetch(url: string, options?: RequestInit, isRetry = false)
   const res = await fetch(`/api/backend${url}`, {
     ...options,
     headers,
-    credentials: 'include', // Forward cookies to proxy
+    credentials: 'include',
   });
 
   if (res.status === 401 && !isRetry) {
-    if (!refreshPromise) {
-      refreshPromise = fetch(`/api/backend/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-        .then(async (refreshRes) => {
-          if (!refreshRes.ok) throw new Error('Refresh failed');
-          const data = await refreshRes.json();
-          const newToken = data.data.tokens.accessToken;
-          setAccessToken(newToken);
-          return newToken;
-        })
-        .catch(() => {
-          clearAccessToken();
-          if (typeof window !== 'undefined') window.location.href = '/auth/login';
-          return null;
-        })
-        .finally(() => {
-          refreshPromise = null;
-        });
-    }
-
-    const newToken = await refreshPromise;
-    if (newToken) {
-      return executeFetch(url, options, true);
-    } else {
-      throw new Error('Session expired');
-    }
+    const newToken = await refreshAccessToken();
+    if (newToken) return executeFetch(url, options, true);
+    throw new Error('Session expired');
   }
 
-  const isJson = res.headers.get('content-type')?.includes('application/json');
-  const data = isJson ? await res.json() : await res.text();
+  const data = await parseResponse(res);
 
   if (!res.ok) {
-    if (isJson && (data as any).errors?.[0]?.message) {
+    if (typeof data === 'object' && data !== null && (data as any).errors?.[0]?.message) {
       throw new Error((data as any).errors[0].message);
     }
     throw new Error(typeof data === 'string' ? data : 'API Error');
   }
 
   return data;
+}
+
+async function uploadMedia(file: File, isRetry = false): Promise<{ data: { urls: string[] } }> {
+  const token = getAccessToken();
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch('/api/backend/media/upload', {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (res.status === 401 && !isRetry) {
+    const newToken = await refreshAccessToken();
+    if (newToken) return uploadMedia(file, true);
+    throw new Error('Session expired');
+  }
+
+  const data = await parseResponse(res);
+
+  if (!res.ok) {
+    if (typeof data === 'object' && data !== null && (data as any).errors?.[0]?.message) {
+      throw new Error((data as any).errors[0].message);
+    }
+    throw new Error(typeof data === 'string' ? data : 'Upload failed');
+  }
+
+  return data as { data: { urls: string[] } };
 }
 
 export const fetcher = executeFetch;
@@ -77,6 +116,17 @@ export const api = {
   createPost: (body: unknown) => fetcher('/posts', { method: 'POST', body: JSON.stringify(body) }),
   likePost: (id: string) => fetcher(`/posts/${id}/react`, { method: 'POST', body: JSON.stringify({ reaction: 'like' }) }),
   unlikePost: (id: string) => fetcher(`/posts/${id}/react`, { method: 'DELETE' }),
+
+  // ── Comments ────────────────────────────────────────────────
+  getPostComments: (postId: string) => fetcher(`/posts/${postId}/comments`),
+  createComment: (postId: string, body: string) =>
+    fetcher(`/posts/${postId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+
+  // ── Media ───────────────────────────────────────────────────
+  uploadMedia,
 
   // ── Groups ──────────────────────────────────────────────────
   getGroups: (params?: Record<string, string>) => {
@@ -105,30 +155,6 @@ export const api = {
     return fetcher(`/resources${qs}`);
   },
   createResource: (body: unknown) => fetcher('/resources', { method: 'POST', body: JSON.stringify(body) }),
-
-  // ── Comments ─────────────────────────────────────────────────
-  getPostComments: (postId: string) => fetcher(`/posts/${postId}/comments`),
-  createComment: (postId: string, body: string) =>
-    fetcher(`/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
-
-  // ── Media ───────────────────────────────────────────────────
-  uploadMedia: (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const token = getAccessToken();
-    return fetch(`/api/backend/media/upload`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      credentials: 'include',
-      body: formData,
-    }).then(async (res) => {
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any)?.errors?.[0]?.message ?? 'Upload failed');
-      }
-      return res.json();
-    });
-  },
 
   // ── Users / Profile ─────────────────────────────────────────
   getMyProfile: () => fetcher('/users/me'),

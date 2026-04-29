@@ -1,237 +1,212 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
-import AppNav from '@/components/AppNav';
 import { api } from '@/lib/api';
-import { fadeUp, buttonTap } from '@/lib/motion';
-import { PostCardSkeleton } from '@/components/ui/Skeleton';
+import AppNav from '@/components/AppNav';
+import { fadeUp, buttonTap, reduced, stagger } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
 
-interface Conversation {
+type Conversation = {
   id: string;
-  other_user_name: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  status: string;
+  other_user_name: string | null;
   other_user_avatar: string | null;
   other_user_id: string;
-  last_message_preview: string | null;
-  last_message_at: string | null;
-  status: string;
-}
+};
 
-interface Message {
+type Message = {
   id: string;
   sender_id: string;
-  sender_name: string;
-  sender_avatar: string | null;
   body: string | null;
-  media_urls: string[];
+  media_urls: string[] | null;
   message_type: string;
-  is_edited: boolean;
   created_at: string;
+  sender_name: string | null;
+  sender_avatar: string | null;
+};
+
+function initials(name: string) {
+  return name.split(' ').map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2) || 'GG';
+}
+
+function timeLabel(iso?: string | null) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function MessagesPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const rm = useReducedMotion();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [convoLoading, setConvoLoading] = useState(true);
-  const [convoError, setConvoError] = useState(false);
-
-  const [activeConvo, setActiveConvo] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [msgLoading, setMsgLoading] = useState(false);
-
-  const [messageInput, setMessageInput] = useState('');
-  const [sending, setSending] = useState(false);
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
 
   useEffect(() => { if (!isLoading && !user) router.push('/auth/login'); }, [user, isLoading, router]);
 
-  // Load conversations
-  useEffect(() => {
-    if (!user) return;
-    setConvoLoading(true);
-    setConvoError(false);
-    api.getConversations()
-      .then((res: any) => setConversations(res.data ?? []))
-      .catch(() => setConvoError(true))
-      .finally(() => setConvoLoading(false));
-  }, [user]);
+  const { data: conversations = [], isLoading: conversationsLoading, error: conversationsError } = useQuery({
+    queryKey: ['conversations'],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await api.getConversations();
+      return (data ?? []) as Conversation[];
+    },
+  });
 
-  // Load messages for active conversation
   useEffect(() => {
-    if (!activeConvo) return;
-    setMsgLoading(true);
-    api.getConversationMessages(activeConvo)
-      .then((res: any) => {
-        setMessages(res.data ?? []);
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      })
-      .catch(() => { /* empty */ })
-      .finally(() => setMsgLoading(false));
-  }, [activeConvo]);
+    if (!selectedId && conversations.length > 0) setSelectedId(conversations[0].id);
+  }, [conversations, selectedId]);
 
-  async function handleSend() {
-    if (!messageInput.trim() || !activeConvo) return;
-    setSending(true);
-    try {
-      await api.sendMessage(activeConvo, messageInput.trim());
-      setMessageInput('');
-      // Refetch messages from backend truth
-      const res = await api.getConversationMessages(activeConvo);
-      setMessages(res.data ?? []);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      // Also refresh conversation list for preview
-      const convoRes = await api.getConversations();
-      setConversations(convoRes.data ?? []);
-    } catch { /* empty */ }
-    setSending(false);
+  const selectedConversation = useMemo(() => conversations.find(c => c.id === selectedId) ?? null, [conversations, selectedId]);
+
+  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+    queryKey: ['conversation-messages', selectedId],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      const { data } = await api.getConversationMessages(selectedId!);
+      return (data ?? []) as Message[];
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: ({ conversationId, body }: { conversationId: string; body: string }) => api.sendMessage(conversationId, body),
+    onSuccess: async () => {
+      setDraft('');
+      await queryClient.invalidateQueries({ queryKey: ['conversation-messages', selectedId] });
+      await queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+
+  if (isLoading || !user) {
+    return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><span style={{ fontSize: 28 }}>⏳</span></div>;
   }
 
-  if (isLoading || !user) return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><span style={{ fontSize: 28 }}>⏳</span></div>;
+  function handleSend(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedId || !draft.trim()) return;
+    sendMutation.mutate({ conversationId: selectedId, body: draft.trim() });
+  }
 
-  const activeConversation = conversations.find(c => c.id === activeConvo);
-  const v = rm ? undefined : fadeUp;
+  const itemV = rm ? reduced.fadeUp : fadeUp;
+  const staggerV = rm ? reduced.stagger : stagger.fast;
 
   return (
     <div>
       <AppNav />
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
-        <motion.div variants={v} initial="hidden" animate="visible" style={{ marginBottom: 24 }}>
+      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '32px 24px' }}>
+        <motion.div variants={itemV} initial="hidden" animate="visible" style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 36, marginBottom: 6 }}>Messages</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Your conversations with community members</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Private community conversations and accepted message requests.</p>
         </motion.div>
 
-        {convoLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {Array.from({ length: 3 }).map((_, i) => <PostCardSkeleton key={i} />)}
-          </div>
-        ) : convoError ? (
-          <EmptyState icon="⚠️" title="Could not load conversations" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+        {conversationsError ? (
+          <EmptyState icon="⚠️" title="Could not load messages" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
+        ) : conversationsLoading ? (
+          <div className="card" style={{ padding: 24 }}>Loading conversations…</div>
         ) : conversations.length === 0 ? (
           <EmptyState
             icon="💬"
             title="No conversations yet"
-            description="Discover people and connect to start messaging."
+            description="Discover community members and start connecting when message requests are available."
             action={{ label: 'Discover People', onClick: () => router.push('/discover') }}
           />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, minHeight: 500 }}>
-            {/* Conversation List */}
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Conversations ({conversations.length})
-              </div>
-              <div style={{ maxHeight: 480, overflowY: 'auto' }}>
-                {conversations.map(c => (
-                  <button
-                    key={c.id}
-                    id={`convo-${c.id}`}
-                    onClick={() => setActiveConvo(c.id)}
+          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, alignItems: 'stretch' }}>
+            <motion.aside className="card" style={{ padding: 12, minHeight: 560 }} variants={staggerV} initial="hidden" animate="visible">
+              {conversations.map((conversation) => {
+                const name = conversation.other_user_name ?? 'Community Member';
+                const active = conversation.id === selectedId;
+                return (
+                  <motion.button
+                    key={conversation.id}
+                    id={`conversation-${conversation.id}`}
+                    variants={itemV}
+                    className="btn btn-ghost"
+                    onClick={() => setSelectedId(conversation.id)}
                     style={{
-                      display: 'flex', gap: 10, alignItems: 'center', padding: '12px 16px', width: '100%',
-                      border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s',
-                      background: activeConvo === c.id ? 'var(--bg-glass-hover)' : 'transparent',
-                      borderBottom: '1px solid var(--border)',
+                      width: '100%',
+                      justifyContent: 'flex-start',
+                      gap: 12,
+                      padding: 12,
+                      marginBottom: 6,
+                      background: active ? 'var(--bg-glass-hover)' : undefined,
                     }}
                   >
-                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-teal), var(--brand-indigo))', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 800, color: 'var(--text-inverse)', flexShrink: 0 }}>
-                      {(c.other_user_name ?? 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{c.other_user_name ?? 'User'}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {c.last_message_preview ?? 'No messages yet'}
-                      </div>
-                    </div>
-                    {c.last_message_at && (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
-                        {new Date(c.last_message_at).toLocaleDateString()}
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Message Thread */}
-            <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {!activeConvo ? (
-                <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Select a conversation</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Choose a conversation from the left to view messages</div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Thread header */}
-                  <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-teal), var(--brand-indigo))', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: 'var(--text-inverse)' }}>
-                      {(activeConversation?.other_user_name ?? 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{activeConversation?.other_user_name ?? 'User'}</div>
-                  </div>
-
-                  {/* Messages */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 380 }}>
-                    {msgLoading ? (
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>Loading messages…</div>
-                    ) : messages.length === 0 ? (
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>No messages yet. Say hello!</div>
+                    {conversation.other_user_avatar ? (
+                      <img src={conversation.other_user_avatar} alt={name} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
-                      messages.map(msg => {
-                        const isMe = msg.sender_id === (user as any).id;
-                        return (
-                          <div key={msg.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                            <div style={{
-                              maxWidth: '70%', padding: '10px 14px', borderRadius: 14,
-                              background: isMe ? 'var(--brand-indigo)' : 'var(--bg-elevated)',
-                              color: isMe ? 'white' : 'var(--text-primary)',
-                              fontSize: 13, lineHeight: 1.5,
-                            }}>
-                              {!isMe && <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 3, opacity: 0.8 }}>{msg.sender_name}</div>}
-                              <div>{msg.body}</div>
-                              <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, textAlign: 'right' }}>
-                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
+                      <span style={{ width: 42, height: 42, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, var(--brand-saffron), var(--brand-indigo))', color: 'var(--text-inverse)', fontWeight: 800 }}>
+                        {initials(name)}
+                      </span>
                     )}
-                    <div ref={messagesEndRef} />
-                  </div>
+                    <span style={{ minWidth: 0, textAlign: 'left' }}>
+                      <span style={{ display: 'block', fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                      <span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {conversation.last_message_preview ?? 'No messages yet'}
+                      </span>
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </motion.aside>
 
-                  {/* Input */}
-                  <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-                    <input
-                      id="message-input"
-                      className="input"
-                      style={{ flex: 1, fontSize: 13 }}
-                      placeholder="Type a message…"
-                      value={messageInput}
-                      onChange={e => setMessageInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
-                    />
-                    <motion.button
-                      id="send-message"
-                      className="btn btn-primary btn-sm"
-                      whileTap={buttonTap}
-                      onClick={() => { void handleSend(); }}
-                      disabled={!messageInput.trim() || sending}
-                    >
-                      {sending ? '…' : 'Send'}
-                    </motion.button>
+            <section className="card" style={{ padding: 0, minHeight: 560, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 800 }}>{selectedConversation?.other_user_name ?? 'Conversation'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Last active {timeLabel(selectedConversation?.last_message_at)}</div>
+                </div>
+              </div>
+
+              <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {messagesLoading ? (
+                  <p style={{ color: 'var(--text-muted)' }}>Loading messages…</p>
+                ) : messages.length === 0 ? (
+                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 42, marginBottom: 8 }}>👋</div>
+                    <div>No messages in this conversation yet.</div>
                   </div>
-                </>
-              )}
-            </div>
+                ) : (
+                  messages.map((message) => {
+                    const mine = message.sender_id === user.id;
+                    return (
+                      <div key={message.id} id={`message-${message.id}`} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                        <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: 16, background: mine ? 'var(--brand-indigo)' : 'var(--bg-elevated)', color: mine ? 'var(--text-inverse)' : 'var(--text-primary)' }}>
+                          <div style={{ fontSize: 14, lineHeight: 1.5 }}>{message.body}</div>
+                          <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>{timeLabel(message.created_at)}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <form onSubmit={handleSend} style={{ padding: 14, borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+                <input
+                  id="message-input"
+                  className="input"
+                  placeholder="Write a message…"
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  disabled={!selectedId || sendMutation.isPending}
+                />
+                <motion.button
+                  id="send-message"
+                  type="submit"
+                  className="btn btn-primary"
+                  whileTap={buttonTap}
+                  disabled={!draft.trim() || !selectedId || sendMutation.isPending}
+                >
+                  {sendMutation.isPending ? 'Sending…' : 'Send'}
+                </motion.button>
+              </form>
+            </section>
           </div>
         )}
       </div>

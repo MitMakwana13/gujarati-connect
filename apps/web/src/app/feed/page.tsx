@@ -1,21 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, useReducedMotion } from 'framer-motion';
-import { useQueryClient } from '@tanstack/react-query';
-import dynamic from 'next/dynamic';
-
-const MotionDiv = dynamic(() => import('framer-motion').then(mod => mod.motion.div), { ssr: false });
-const MotionA = dynamic(() => import('framer-motion').then(mod => mod.motion.a), { ssr: false });
-const MotionButton = dynamic(() => import('framer-motion').then(mod => mod.motion.button), { ssr: false });
-const MotionArticle = dynamic(() => import('framer-motion').then(mod => mod.motion.article), { ssr: false });
-const MotionSpan = dynamic(() => import('framer-motion').then(mod => mod.motion.span), { ssr: false });
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
-import { usePosts, useToggleLike, useCreatePost } from '@/hooks/usePosts';
-import { useEvents } from '@/hooks/useEvents';
-import { useGroups } from '@/hooks/useGroups';
 import { api } from '@/lib/api';
+import { usePosts, useToggleLike, useCreatePost } from '@/hooks/usePosts';
+import { useEvents, useRSVP } from '@/hooks/useEvents';
+import { useGroups, useJoinGroup } from '@/hooks/useGroups';
 import AppNav from '@/components/AppNav';
 import { stagger, fadeUp, buttonTap, scalePop, reduced } from '@/lib/motion';
 import { PostCardSkeleton } from '@/components/ui/Skeleton';
@@ -31,44 +24,75 @@ const SIDEBAR_LINKS = [
   { href: '/profile',   icon: '👤', label: 'Profile' },
 ];
 
+type UiPost = {
+  id: string;
+  author: { name: string; avatar?: string | null; city?: string; initials?: string };
+  body: string;
+  mediaUrls?: string[];
+  time: string;
+  likes: number;
+  liked: boolean;
+  comments: number;
+  tags: string[];
+  group?: string;
+};
+
+type ApiComment = {
+  id: string;
+  body: string;
+  created_at: string;
+  author_id: string;
+  author_display_name?: string | null;
+  author_avatar_url?: string | null;
+};
+
+function Avatar({ name, avatar, size = 42 }: { name: string; avatar?: string | null; size?: number }) {
+  const initials = name
+    .split(' ')
+    .map((w) => w[0] ?? '')
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'GG';
+
+  if (avatar && avatar.startsWith('http')) {
+    return <img src={avatar} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />;
+  }
+
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, var(--brand-saffron), var(--brand-indigo))', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 800, color: 'var(--text-inverse)' }}>
+      {initials}
+    </div>
+  );
+}
+
 export default function FeedPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const isReduced = useReducedMotion();
+
   const { data: posts = [], isLoading: postsLoading } = usePosts();
   const toggleLikeMutation = useToggleLike();
   const createPostMutation = useCreatePost();
 
-  // Sidebar: real data with limit
   const { data: sidebarEvents = [] } = useEvents({ limit: '2' });
   const { data: sidebarGroups = [] } = useGroups({ limit: '3' });
-
-  const queryClient = useQueryClient();
+  const joinGroupMutation = useJoinGroup();
+  const rsvpMutation = useRSVP();
 
   const [composeText, setComposeText] = useState('');
   const [composeFocused, setComposeFocused] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Photo upload state
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [composeMediaUrls, setComposeMediaUrls] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
+  const [joinedGroupIds, setJoinedGroupIds] = useState<Set<string>>(new Set());
+  const [rsvpedEventIds, setRsvpedEventIds] = useState<Set<string>>(new Set());
+  const [sideActionError, setSideActionError] = useState<string | null>(null);
 
-  // Comment state
-  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
-  const [postComments, setPostComments] = useState<Record<string, any[]>>({});
-  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
-  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
-  const [commentSubmitting, setCommentSubmitting] = useState<Record<string, boolean>>({});
-
-  // Share state
-  const [shareState, setShareState] = useState<Record<string, string>>({});
-
-  // Sidebar action state
-  const [joinedGroups, setJoinedGroups] = useState<Record<string, boolean>>({});
-  const [joiningGroups, setJoiningGroups] = useState<Record<string, boolean>>({});
-  const [rsvpdEvents, setRsvpdEvents] = useState<Record<string, boolean>>({});
-  const [rsvpingEvents, setRsvpingEvents] = useState<Record<string, boolean>>({});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoading && !user) router.push('/auth/login');
@@ -76,7 +100,7 @@ export default function FeedPage() {
 
   if (isLoading || !user) return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-base)' }}>
-      <MotionDiv animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ fontSize: 28 }}>⏳</MotionDiv>
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ fontSize: 28 }}>⏳</motion.div>
     </div>
   );
 
@@ -84,105 +108,110 @@ export default function FeedPage() {
     toggleLikeMutation.mutate({ id, isCurrentlyLiked });
   }
 
-  async function handlePost(e: FormEvent) {
-    e.preventDefault();
-    if (!composeText.trim() && composeMediaUrls.length === 0) return;
-    createPostMutation.mutate(
-      { body: composeText, contentType: composeMediaUrls.length > 0 ? 'media' : 'text', mediaUrls: composeMediaUrls },
-      { onSuccess: () => { setComposeText(''); setComposeFocused(false); setComposeMediaUrls([]); } }
-    );
-  }
-
-  // Photo upload handler
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
-    setComposeFocused(true);
+
+    setUploadError(null);
+    setUploadingPhoto(true);
     try {
-      const json = await api.uploadMedia(file);
-      const urls: string[] = json.data?.urls ?? [];
-      if (urls.length > 0) setComposeMediaUrls(prev => [...prev, ...urls]);
-    } catch (err: any) {
-      alert(err?.message ?? 'Photo upload failed. Please try again.');
+      const result = await api.uploadMedia(file);
+      const urls = result?.data?.urls ?? [];
+      if (urls.length === 0) throw new Error('Upload returned no media URL');
+      setComposeMediaUrls(prev => [...prev, ...urls]);
+      setComposeFocused(true);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not upload photo');
     } finally {
-      setUploading(false);
+      setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
-  // Comment handlers
-  const toggleComments = useCallback(async (postId: string) => {
-    const isExpanded = expandedComments[postId];
-    setExpandedComments(prev => ({ ...prev, [postId]: !isExpanded }));
-    if (!isExpanded && !postComments[postId]) {
-      setCommentLoading(prev => ({ ...prev, [postId]: true }));
-      try {
-        const res = await api.getPostComments(postId);
-        setPostComments(prev => ({ ...prev, [postId]: res.data ?? [] }));
-      } catch { /* empty */ }
-      setCommentLoading(prev => ({ ...prev, [postId]: false }));
-    }
-  }, [expandedComments, postComments]);
+  async function handlePost(e: FormEvent) {
+    e.preventDefault();
+    const body = composeText.trim();
+    if (!body && composeMediaUrls.length === 0) return;
 
-  async function submitComment(postId: string) {
-    const body = commentInputs[postId]?.trim();
-    if (!body) return;
-    setCommentSubmitting(prev => ({ ...prev, [postId]: true }));
-    try {
-      await api.createComment(postId, body);
-      setCommentInputs(prev => ({ ...prev, [postId]: '' }));
-      // Refetch comments from backend truth
-      const res = await api.getPostComments(postId);
-      setPostComments(prev => ({ ...prev, [postId]: res.data ?? [] }));
-      // Refetch posts to update comment count
-      void queryClient.invalidateQueries({ queryKey: ['posts'] });
-    } catch { /* empty */ }
-    setCommentSubmitting(prev => ({ ...prev, [postId]: false }));
+    createPostMutation.mutate(
+      {
+        body: body || undefined,
+        contentType: composeMediaUrls.length > 0 ? 'image' : 'text',
+        mediaUrls: composeMediaUrls,
+      },
+      {
+        onSuccess: () => {
+          setComposeText('');
+          setComposeFocused(false);
+          setComposeMediaUrls([]);
+          setUploadError(null);
+        },
+      },
+    );
   }
 
-  // Share handler
-  async function handleShare(postId: string) {
+  function toggleComments(postId: string) {
+    setExpandedComments(prev => {
+      const next = new Set(prev);
+      next.has(postId) ? next.delete(postId) : next.add(postId);
+      return next;
+    });
+  }
+
+  async function sharePost(postId: string) {
     const url = `${window.location.origin}/feed#post-${postId}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'Gujarati Global', url });
-        setShareState(prev => ({ ...prev, [postId]: 'Shared!' }));
+        await navigator.share({ title: 'Gujarati Global post', url });
       } else {
         await navigator.clipboard.writeText(url);
-        setShareState(prev => ({ ...prev, [postId]: 'Copied!' }));
       }
+      setCopiedPostId(postId);
+      window.setTimeout(() => setCopiedPostId(current => current === postId ? null : current), 2000);
     } catch {
       try {
         await navigator.clipboard.writeText(url);
-        setShareState(prev => ({ ...prev, [postId]: 'Copied!' }));
+        setCopiedPostId(postId);
+        window.setTimeout(() => setCopiedPostId(current => current === postId ? null : current), 2000);
       } catch {
-        setShareState(prev => ({ ...prev, [postId]: 'Failed' }));
+        setSideActionError('Could not copy share link.');
+        window.setTimeout(() => setSideActionError(null), 2500);
       }
     }
-    setTimeout(() => setShareState(prev => ({ ...prev, [postId]: '' })), 2000);
   }
 
-  // Sidebar join handler
-  async function handleSidebarJoin(groupId: string) {
-    setJoiningGroups(prev => ({ ...prev, [groupId]: true }));
-    try {
-      await api.joinGroup(groupId);
-      setJoinedGroups(prev => ({ ...prev, [groupId]: true }));
-      void queryClient.invalidateQueries({ queryKey: ['groups'] });
-    } catch { /* empty */ }
-    setJoiningGroups(prev => ({ ...prev, [groupId]: false }));
+  function joinSidebarGroup(groupId: string) {
+    setSideActionError(null);
+    joinGroupMutation.mutate(
+      { id: groupId },
+      {
+        onSuccess: async () => {
+          setJoinedGroupIds(prev => new Set(prev).add(groupId));
+          await queryClient.invalidateQueries({ queryKey: ['groups'] });
+        },
+        onError: (err) => {
+          setSideActionError(err instanceof Error ? err.message : 'Could not join group.');
+          window.setTimeout(() => setSideActionError(null), 2500);
+        },
+      },
+    );
   }
 
-  // Sidebar RSVP handler
-  async function handleSidebarRsvp(eventId: string) {
-    setRsvpingEvents(prev => ({ ...prev, [eventId]: true }));
-    try {
-      await api.rsvpEvent(eventId, 'going');
-      setRsvpdEvents(prev => ({ ...prev, [eventId]: true }));
-      void queryClient.invalidateQueries({ queryKey: ['events'] });
-    } catch { /* empty */ }
-    setRsvpingEvents(prev => ({ ...prev, [eventId]: false }));
+  function rsvpSidebarEvent(eventId: string) {
+    setSideActionError(null);
+    rsvpMutation.mutate(
+      { id: eventId, status: 'going' },
+      {
+        onSuccess: async () => {
+          setRsvpedEventIds(prev => new Set(prev).add(eventId));
+          await queryClient.invalidateQueries({ queryKey: ['events'] });
+        },
+        onError: (err) => {
+          setSideActionError(err instanceof Error ? err.message : 'Could not RSVP to event.');
+          window.setTimeout(() => setSideActionError(null), 2500);
+        },
+      },
+    );
   }
 
   const staggerVariants = isReduced ? reduced.stagger : stagger.normal;
@@ -192,10 +221,9 @@ export default function FeedPage() {
     <div>
       <AppNav />
       <div className="app-layout">
-        {/* Left sidebar */}
         <aside className="sidebar">
           {SIDEBAR_LINKS.map(item => (
-            <MotionA
+            <motion.a
               key={item.href}
               href={item.href}
               className={`sidebar-item${item.href === '/feed' ? ' active' : ''}`}
@@ -203,14 +231,14 @@ export default function FeedPage() {
               transition={{ duration: 0.15 }}
             >
               {item.href === '/feed' && (
-                <MotionDiv
+                <motion.div
                   layoutId="sidebar-pill"
                   style={{ position: 'absolute', inset: 0, background: 'var(--bg-glass-hover)', borderRadius: 'var(--r-md)', zIndex: -1 }}
                 />
               )}
               <span className="icon">{item.icon}</span>
               {item.label}
-            </MotionA>
+            </motion.a>
           ))}
           <div className="divider" style={{ margin: '8px 0' }} />
           <div style={{ padding: '8px 14px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
@@ -219,15 +247,13 @@ export default function FeedPage() {
           </div>
         </aside>
 
-        {/* Feed column */}
         <main style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Compose */}
-          <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible">
+          <motion.div className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible">
             <form onSubmit={e => { void handlePost(e); }}>
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { void handlePhotoChange(e); }} />
+
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ width: 42, height: 42, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, var(--brand-saffron), var(--brand-indigo))', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 800, color: 'var(--text-inverse)' }}>
-                  {user.avatarInitials}
-                </div>
+                <Avatar name={user.displayName} size={42} />
                 <div style={{ flex: 1 }}>
                   <textarea
                     id="compose-input"
@@ -237,61 +263,73 @@ export default function FeedPage() {
                     value={composeText}
                     onChange={e => setComposeText(e.target.value)}
                     onFocus={() => setComposeFocused(true)}
-                    rows={composeFocused || composeText ? 3 : 1}
+                    rows={composeFocused || composeText || composeMediaUrls.length > 0 ? 3 : 1}
                     style={{ resize: 'none', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}
                   />
+
+                  {composeMediaUrls.length > 0 && (
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+                      {composeMediaUrls.map((url) => (
+                        <div key={url} style={{ position: 'relative' }}>
+                          <img src={url} alt="Post upload" style={{ width: 120, height: 90, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--border)' }} />
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.55)', color: 'white' }}
+                            onClick={() => setComposeMediaUrls(prev => prev.filter(item => item !== url))}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {uploadError && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>⚠️ {uploadError}</div>}
                 </div>
               </div>
 
               <AnimatePresence>
                 {(composeFocused || composeText || composeMediaUrls.length > 0) && (
-                  <MotionDiv initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}>
-                    {composeMediaUrls.length > 0 && (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                        {composeMediaUrls.map((url, i) => (
-                          <div key={i} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                            <img src={url} alt="Upload" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <button type="button" onClick={() => setComposeMediaUrls(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', cursor: 'pointer', fontSize: 12, display: 'grid', placeItems: 'center' }}>✕</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {uploading && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>⏳ Uploading photo…</div>}
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'space-between', alignItems: 'center' }}>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>📷 Add Photo</button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" id="compose-photo-inline" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}>
+                          {uploadingPhoto ? 'Uploading…' : '📷 Add Photo'}
+                        </button>
+                      </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <MotionButton type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); setComposeMediaUrls([]); }}>Cancel</MotionButton>
-                        <MotionButton id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={(!composeText.trim() && composeMediaUrls.length === 0) || createPostMutation.isPending || uploading}>
+                        <motion.button type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); setComposeMediaUrls([]); setUploadError(null); }}>Cancel</motion.button>
+                        <motion.button id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={(!composeText.trim() && composeMediaUrls.length === 0) || createPostMutation.isPending || uploadingPhoto}>
                           {createPostMutation.isPending ? 'Posting…' : 'Post'}
-                        </MotionButton>
+                        </motion.button>
                       </div>
                     </div>
-                  </MotionDiv>
+                  </motion.div>
                 )}
               </AnimatePresence>
 
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{ display: 'none' }} onChange={e => { void handlePhotoSelect(e); }} />
-
               {!composeFocused && !composeText && composeMediaUrls.length === 0 && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                  <button type="button" id="compose-photo" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>📷 Photo</button>
+                  <button type="button" id="compose-photo" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}>
+                    {uploadingPhoto ? 'Uploading…' : '📷 Photo'}
+                  </button>
                   <button type="button" id="compose-event" className="btn btn-ghost btn-sm" onClick={() => router.push('/events/create')}>🎉 Event</button>
                   <button type="button" id="compose-resource" className="btn btn-ghost btn-sm" onClick={() => router.push('/resources/create')}>📋 Resource</button>
                 </div>
               )}
             </form>
-          </MotionDiv>
+          </motion.div>
 
-          {/* Posts */}
           {postsLoading ? (
             Array.from({ length: 3 }).map((_, i) => <PostCardSkeleton key={i} />)
           ) : posts.length === 0 ? (
             <EmptyState icon="✨" title="Your feed is empty" description="Follow some communities and connect with people to see their posts here." action={{ label: 'Discover people', onClick: () => router.push('/discover') }} />
           ) : (
-            <MotionDiv className="feed" variants={staggerVariants} initial="hidden" animate="visible">
+            <motion.div className="feed" variants={staggerVariants} initial="hidden" animate="visible">
               <AnimatePresence>
-                {(posts as any[]).map((post: any) => (
-                  <MotionArticle
+                {(posts as UiPost[]).map((post) => (
+                  <motion.article
                     key={post.id}
                     id={`post-${post.id}`}
                     className="card post-card"
@@ -304,9 +342,7 @@ export default function FeedPage() {
                     style={{ cursor: 'default' }}
                   >
                     <header style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                      <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 22, flexShrink: 0 }}>
-                        {post.author.avatar}
-                      </div>
+                      <Avatar name={post.author.name} avatar={post.author.avatar} size={42} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{post.author.name}</div>
                         <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', gap: 6 }}>
@@ -317,12 +353,12 @@ export default function FeedPage() {
                       </div>
                     </header>
 
-                    <p className="post-body">{post.body}</p>
+                    {post.body && <p className="post-body">{post.body}</p>}
 
-                    {post.mediaUrls?.length > 0 && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                        {post.mediaUrls.map((url: string, i: number) => (
-                          <img key={i} src={url} alt="Post media" style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 8, objectFit: 'cover' }} />
+                    {(post.mediaUrls?.length ?? 0) > 0 && (
+                      <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                        {post.mediaUrls!.map(url => (
+                          <img key={url} src={url} alt="Post media" style={{ width: '100%', maxHeight: 460, objectFit: 'cover', borderRadius: 16, border: '1px solid var(--border)' }} />
                         ))}
                       </div>
                     )}
@@ -335,7 +371,7 @@ export default function FeedPage() {
 
                     <div className="divider" style={{ marginBottom: 10 }} />
                     <div className="post-actions">
-                      <MotionButton
+                      <motion.button
                         id={`like-${post.id}`}
                         className="btn btn-ghost btn-sm"
                         onClick={() => toggleLike(post.id, post.liked)}
@@ -343,70 +379,39 @@ export default function FeedPage() {
                         style={{ color: post.liked ? 'var(--brand-saffron)' : 'var(--text-secondary)' }}
                       >
                         <AnimatePresence mode="wait">
-                          <MotionSpan key={post.liked ? 'liked' : 'notliked'} variants={scalePop} initial="hidden" animate="visible">
+                          <motion.span key={post.liked ? 'liked' : 'notliked'} variants={scalePop} initial="hidden" animate="visible">
                             👍
-                          </MotionSpan>
+                          </motion.span>
                         </AnimatePresence>
                         {post.liked ? 'Liked' : 'Like'}
                         <span style={{ color: 'var(--text-muted)' }}>{post.likes}</span>
-                      </MotionButton>
-                      <MotionButton id={`comment-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void toggleComments(post.id); }}>
+                      </motion.button>
+
+                      <motion.button id={`comment-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => toggleComments(post.id)}>
                         💬 Comment <span style={{ color: 'var(--text-muted)' }}>{post.comments}</span>
-                      </MotionButton>
-                      <MotionButton id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void handleShare(post.id); }}>
-                        {shareState[post.id] ? `✓ ${shareState[post.id]}` : '↗ Share'}
-                      </MotionButton>
+                      </motion.button>
+
+                      <motion.button id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void sharePost(post.id); }}>
+                        ↗ {copiedPostId === post.id ? 'Copied!' : 'Share'}
+                      </motion.button>
                     </div>
 
-                    {/* Inline Comment Panel */}
-                    {expandedComments[post.id] && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                        {commentLoading[post.id] ? (
-                          <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 8 }}>Loading comments…</div>
-                        ) : (
-                          <>
-                            {(postComments[post.id] ?? []).length === 0 && (
-                              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 0 8px' }}>No comments yet. Be the first!</div>
-                            )}
-                            {(postComments[post.id] ?? []).map((c: any) => (
-                              <div key={c.id} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
-                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 12, flexShrink: 0, fontWeight: 700 }}>
-                                  {(c.author_display_name ?? 'U').charAt(0)}
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 13 }}><strong>{c.author_display_name ?? 'User'}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{new Date(c.created_at).toLocaleDateString()}</span></div>
-                                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{c.body}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <input
-                            className="input"
-                            style={{ flex: 1, fontSize: 13 }}
-                            placeholder="Write a comment…"
-                            value={commentInputs[post.id] ?? ''}
-                            onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submitComment(post.id); } }}
-                          />
-                          <button className="btn btn-primary btn-sm" onClick={() => { void submitComment(post.id); }} disabled={!commentInputs[post.id]?.trim() || commentSubmitting[post.id]}>
-                            {commentSubmitting[post.id] ? '…' : 'Send'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </MotionArticle>
+                    {expandedComments.has(post.id) && <InlineComments postId={post.id} />}
+                  </motion.article>
                 ))}
               </AnimatePresence>
-            </MotionDiv>
+            </motion.div>
           )}
         </main>
 
-        {/* Right rail */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Groups from API */}
-          <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.15 }}>
+          {sideActionError && (
+            <div className="card" style={{ padding: 12, background: '#ef4444', color: 'white', fontSize: 13, fontWeight: 700 }}>
+              ⚠️ {sideActionError}
+            </div>
+          )}
+
+          <motion.div className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.15 }}>
             <div className="section-header">
               <h3 className="section-title" style={{ fontSize: 15 }}>Suggested Groups</h3>
               <a href="/groups" className="section-link">See all</a>
@@ -415,28 +420,33 @@ export default function FeedPage() {
               <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No groups yet.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {(sidebarGroups as any[]).map((g: any) => (
-                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 20, flexShrink: 0 }}>👥</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.member_count?.toLocaleString()} members</div>
-                    </div>
-                    {joinedGroups[g.id] || g.myMembership?.status === 'active' ? (
-                      <span className="btn btn-sm btn-ghost" style={{ fontSize: 12, padding: '4px 11px', color: 'var(--brand-teal)' }}>✓ Joined</span>
-                    ) : (
-                      <button className="btn btn-sm btn-secondary" style={{ fontSize: 12, padding: '4px 11px' }} onClick={() => { void handleSidebarJoin(g.id); }} disabled={joiningGroups[g.id]}>
-                        {joiningGroups[g.id] ? '…' : 'Join'}
+                {(sidebarGroups as any[]).map((g: any) => {
+                  const isJoined = joinedGroupIds.has(g.id) || g.myMembership?.status === 'active';
+                  const isPending = g.myMembership?.status === 'pending';
+                  return (
+                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 20, flexShrink: 0 }}>👥</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.member_count?.toLocaleString()} members</div>
+                      </div>
+                      <button
+                        id={`sidebar-join-${g.id}`}
+                        className="btn btn-sm btn-secondary"
+                        style={{ fontSize: 12, padding: '4px 11px' }}
+                        disabled={isJoined || isPending || joinGroupMutation.isPending}
+                        onClick={() => joinSidebarGroup(g.id)}
+                      >
+                        {isJoined ? '✓ Joined' : isPending ? 'Pending' : 'Join'}
                       </button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </MotionDiv>
+          </motion.div>
 
-          {/* Events from API */}
-          <MotionDiv className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.25 }}>
+          <motion.div className="card" style={{ padding: 20 }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.25 }}>
             <div className="section-header">
               <h3 className="section-title" style={{ fontSize: 15 }}>Upcoming Events</h3>
               <a href="/events" className="section-link">See all</a>
@@ -445,34 +455,109 @@ export default function FeedPage() {
               <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No upcoming events.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {sidebarEvents.map((evt: any) => (
-                  <div key={evt.id} style={{ borderLeft: '3px solid var(--brand-saffron)', paddingLeft: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{evt.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      📅 {new Date(evt.starts_at).toLocaleDateString()}
-                    </div>
-                    {rsvpdEvents[evt.id] || evt.my_rsvp === 'going' ? (
-                      <span className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12, color: 'var(--brand-teal)' }}>✓ Going</span>
-                    ) : (
-                      <button className="btn btn-secondary btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }} onClick={() => { void handleSidebarRsvp(evt.id); }} disabled={rsvpingEvents[evt.id]}>
-                        {rsvpingEvents[evt.id] ? '…' : 'RSVP →'}
+                {sidebarEvents.map((evt: any) => {
+                  const isGoing = rsvpedEventIds.has(evt.id) || evt.my_rsvp === 'going';
+                  return (
+                    <div key={evt.id} style={{ borderLeft: '3px solid var(--brand-saffron)', paddingLeft: 12 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{evt.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        📅 {new Date(evt.starts_at).toLocaleDateString()}
+                      </div>
+                      <button
+                        id={`sidebar-rsvp-${evt.id}`}
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }}
+                        disabled={isGoing || rsvpMutation.isPending}
+                        onClick={() => rsvpSidebarEvent(evt.id)}
+                      >
+                        {isGoing ? '✓ Going' : 'RSVP →'}
                       </button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </MotionDiv>
+          </motion.div>
 
-          {/* Discover prompt */}
-          <MotionDiv className="card" style={{ padding: 20, background: 'linear-gradient(135deg, hsla(247,75%,64%,0.12), hsla(32,98%,55%,0.08))' }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.35 }}>
+          <motion.div className="card" style={{ padding: 20, background: 'linear-gradient(135deg, hsla(247,75%,64%,0.12), hsla(32,98%,55%,0.08))' }} variants={isReduced ? undefined : fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.35 }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Find your people</div>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>Connect with Gujaratis by shared roots, city, and industry.</p>
             <a href="/discover" className="btn btn-indigo btn-sm" style={{ width: '100%' }}>Explore Discover</a>
-          </MotionDiv>
+          </motion.div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function InlineComments({ postId }: { postId: string }) {
+  const queryClient = useQueryClient();
+  const [commentBody, setCommentBody] = useState('');
+
+  const { data: comments = [], isLoading, error } = useQuery({
+    queryKey: ['post-comments', postId],
+    queryFn: async () => {
+      const { data } = await api.getPostComments(postId);
+      return (data ?? []) as ApiComment[];
+    },
+  });
+
+  const createCommentMutation = useMutation({
+    mutationFn: ({ body }: { body: string }) => api.createComment(postId, body),
+    onSuccess: async () => {
+      setCommentBody('');
+      await queryClient.invalidateQueries({ queryKey: ['post-comments', postId] });
+      await queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+
+  function submitComment(e: FormEvent) {
+    e.preventDefault();
+    if (!commentBody.trim()) return;
+    createCommentMutation.mutate({ body: commentBody.trim() });
+  }
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+      {isLoading ? (
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading comments…</p>
+      ) : error ? (
+        <p style={{ fontSize: 13, color: '#ef4444' }}>Could not load comments.</p>
+      ) : comments.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>No comments yet. Start the conversation.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+          {comments.map(comment => (
+            <div key={comment.id} id={`comment-${comment.id}`} style={{ display: 'flex', gap: 10 }}>
+              <Avatar name={comment.author_display_name ?? 'Member'} avatar={comment.author_avatar_url} size={32} />
+              <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 12, padding: '8px 10px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{comment.author_display_name ?? 'Member'}</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>{comment.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={submitComment} style={{ display: 'flex', gap: 8 }}>
+        <input
+          id={`comment-input-${postId}`}
+          className="input"
+          value={commentBody}
+          onChange={e => setCommentBody(e.target.value)}
+          placeholder="Write a comment…"
+          disabled={createCommentMutation.isPending}
+        />
+        <button
+          id={`comment-submit-${postId}`}
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={!commentBody.trim() || createCommentMutation.isPending}
+        >
+          {createCommentMutation.isPending ? 'Posting…' : 'Post'}
+        </button>
+      </form>
     </div>
   );
 }
