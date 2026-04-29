@@ -94,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/backend/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
 
@@ -120,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/backend/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           email: data.email,
           password: data.password,
@@ -141,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/backend/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email, otp }),
       });
       const json = await res.json() as {
