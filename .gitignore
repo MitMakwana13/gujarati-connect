@@ -1,12 +1,7 @@
 # Dependencies
 node_modules/
 .pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+.pnpm-store/
 
 # Build outputs
 dist/
@@ -15,13 +10,16 @@ build/
 .next/
 /out/
 
-# Environment files
+# Environment files — real secrets, never commit these
 .env
-.env*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Keep example env files in the repo
+!.env.example
+!.env.production.example
 
 # Logs
 logs/
@@ -55,6 +53,7 @@ coverage/
 # Supabase
 supabase/.temp/
 
-# Misc
+# Misc / scratch
+tmp/
 AGENTS.md
 CLAUDE.md

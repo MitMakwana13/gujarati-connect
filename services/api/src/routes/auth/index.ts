@@ -9,6 +9,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { totp } from 'otplib';
 import {
@@ -287,7 +288,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
 // ── Helpers ──────────────────────────────────────────────────
 
 async function generateAndStoreOtp(app: FastifyInstance, email: string): Promise<string> {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = crypto.randomInt(100000, 1000000).toString();
   await app.redis.setex(`${OTP_PREFIX}${email}`, config.otp.expirySeconds, otp);
   return otp;
 }

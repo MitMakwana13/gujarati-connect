@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gujarati Global
 
-## Getting Started
+A diaspora community platform for Gujaratis worldwide — connecting people across cities, cultures, and borders.
 
-First, run the development server:
+## What it does
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- City communities and global groups
+- Events with RSVP
+- Resource listings (jobs, housing, services)
+- Direct messaging
+- Notifications
+- Content moderation and reporting
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15 (App Router) |
+| Backend API | Fastify 5 |
+| Background jobs | Node.js worker service |
+| Database | Supabase Postgres |
+| Cache / queues | Upstash Redis |
+| Media storage | Supabase Storage |
+| Frontend hosting | Vercel |
+| Backend hosting | Railway |
+| Monorepo tooling | pnpm + Turborepo |
+
+## Repo structure
+
+```
+apps/
+  web/              Next.js frontend
+services/
+  api/              Fastify REST API
+  worker/           Background job processor
+packages/
+  types/            Shared TypeScript domain types
+  validators/       Shared Zod schemas
+scripts/            Dev utilities (seed, smoke test)
+supabase/           Database migrations
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Install dependencies
+pnpm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Copy and fill in environment variables
+cp .env.example .env
 
-## Learn More
+# Run database migrations
+pnpm migrate
 
-To learn more about Next.js, take a look at the following resources:
+# Start all services
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Frontend runs at `http://localhost:3000`  
+API runs at `http://localhost:4000`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment variables
 
-## Deploy on Vercel
+See `.env.example` for local development.  
+See `.env.production.example` for production deployment.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Service | Platform | Config |
+|---|---|---|
+| `apps/web` | Vercel | Root Directory: `apps/web` |
+| `services/api` | Railway | `services/api/railway.json` |
+| `services/worker` | Railway | `services/worker/railway.json` |
+
+Full deployment instructions: [`DEPLOY.md`](./DEPLOY.md)
+
+## License
+
+Private — all rights reserved.

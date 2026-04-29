@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Vercel must set this to the Fastify API base, including /api/v1.
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api/v1').replace(/\/+$/, '');
+// Server-side only — never exposed to the browser.
+// Set API_BASE_URL in Vercel environment variables (not NEXT_PUBLIC_*).
+const API_URL = (process.env.API_BASE_URL || 'http://127.0.0.1:4000/api/v1').replace(/\/+$/, '');
 
 const REQUEST_HEADERS_TO_FORWARD = ['authorization', 'content-type', 'cookie'];
 const RESPONSE_HEADERS_TO_FORWARD = ['content-type', 'set-cookie', 'retry-after', 'www-authenticate', 'x-request-id'];

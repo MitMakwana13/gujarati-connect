@@ -156,7 +156,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     options: { maxPayload: 1048576 } // 1MB
   });
   
-  await app.register(cookie, { secret: process.env.COOKIE_SECRET || 'dev-cookie-secret-fallback-32-chars!!' });
+  const cookieSecret = process.env['COOKIE_SECRET'];
+  if (config.env === 'production' && !cookieSecret) {
+    throw new Error('COOKIE_SECRET is required in production — set it in your Railway environment variables');
+  }
+  await app.register(cookie, { secret: cookieSecret ?? 'dev-cookie-secret-fallback-32-chars!!' });
   await app.register(fastifyCsrfProtection, {
     cookieOpts: { signed: true, httpOnly: true, secure: config.env === 'production' }
   });

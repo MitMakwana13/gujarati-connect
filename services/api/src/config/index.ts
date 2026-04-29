@@ -108,9 +108,16 @@ export const config = {
 
   email: {
     host: optionalEnv('EMAIL_SMTP_HOST', 'localhost'),
-    port: optionalIntEnv('EMAIL_SMTP_PORT', 1025), // Defaults to local testing SMTP
+    port: optionalIntEnv('EMAIL_SMTP_PORT', 1025),
     user: optionalEnv('EMAIL_SMTP_USER', ''),
-    pass: requireProdEnv('EMAIL_SMTP_PASS'),
+    pass: (() => {
+      const val = process.env['EMAIL_SMTP_PASS'] ?? '';
+      if (!val && optionalEnv('NODE_ENV', 'development') === 'production') {
+        // Warn but do not crash — OTP will fall back to console logging
+        console.warn('[config] EMAIL_SMTP_PASS not set: OTP emails will log to console instead of sending');
+      }
+      return val;
+    })(),
     from: optionalEnv('EMAIL_FROM', 'noreply@gujaratiglobal.com'),
   },
 
