@@ -12,11 +12,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'gg_app') THEN
         CREATE ROLE gg_app LOGIN PASSWORD 'change_in_production';
     END IF;
+    -- Grant connect dynamically based on current database
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO gg_app', current_database());
 END;
 $$;
 
--- Grant connect
-GRANT CONNECT ON DATABASE gujarati_global TO gg_app;
 GRANT USAGE ON SCHEMA public TO gg_app;
 
 -- Grant select/insert/update/delete on all application tables
