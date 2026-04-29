@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, useReducedMotion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 
 const MotionDiv = dynamic(() => import('framer-motion').then(mod => mod.motion.div), { ssr: false });
@@ -14,6 +15,7 @@ import { useAuth } from '@/lib/auth-context';
 import { usePosts, useToggleLike, useCreatePost } from '@/hooks/usePosts';
 import { useEvents } from '@/hooks/useEvents';
 import { useGroups } from '@/hooks/useGroups';
+import { api } from '@/lib/api';
 import AppNav from '@/components/AppNav';
 import { stagger, fadeUp, buttonTap, scalePop, reduced } from '@/lib/motion';
 import { PostCardSkeleton } from '@/components/ui/Skeleton';
@@ -41,9 +43,32 @@ export default function FeedPage() {
   const { data: sidebarEvents = [] } = useEvents({ limit: '2' });
   const { data: sidebarGroups = [] } = useGroups({ limit: '3' });
 
+  const queryClient = useQueryClient();
+
   const [composeText, setComposeText] = useState('');
   const [composeFocused, setComposeFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Photo upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [composeMediaUrls, setComposeMediaUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  // Comment state
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [postComments, setPostComments] = useState<Record<string, any[]>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
+  const [commentSubmitting, setCommentSubmitting] = useState<Record<string, boolean>>({});
+
+  // Share state
+  const [shareState, setShareState] = useState<Record<string, string>>({});
+
+  // Sidebar action state
+  const [joinedGroups, setJoinedGroups] = useState<Record<string, boolean>>({});
+  const [joiningGroups, setJoiningGroups] = useState<Record<string, boolean>>({});
+  const [rsvpdEvents, setRsvpdEvents] = useState<Record<string, boolean>>({});
+  const [rsvpingEvents, setRsvpingEvents] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isLoading && !user) router.push('/auth/login');
@@ -61,11 +86,103 @@ export default function FeedPage() {
 
   async function handlePost(e: FormEvent) {
     e.preventDefault();
-    if (!composeText.trim()) return;
+    if (!composeText.trim() && composeMediaUrls.length === 0) return;
     createPostMutation.mutate(
-      { body: composeText, contentType: 'text', mediaUrls: [] },
-      { onSuccess: () => { setComposeText(''); setComposeFocused(false); } }
+      { body: composeText, contentType: composeMediaUrls.length > 0 ? 'media' : 'text', mediaUrls: composeMediaUrls },
+      { onSuccess: () => { setComposeText(''); setComposeFocused(false); setComposeMediaUrls([]); } }
     );
+  }
+
+  // Photo upload handler
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setComposeFocused(true);
+    try {
+      const json = await api.uploadMedia(file);
+      const urls: string[] = json.data?.urls ?? [];
+      if (urls.length > 0) setComposeMediaUrls(prev => [...prev, ...urls]);
+    } catch (err: any) {
+      alert(err?.message ?? 'Photo upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  // Comment handlers
+  const toggleComments = useCallback(async (postId: string) => {
+    const isExpanded = expandedComments[postId];
+    setExpandedComments(prev => ({ ...prev, [postId]: !isExpanded }));
+    if (!isExpanded && !postComments[postId]) {
+      setCommentLoading(prev => ({ ...prev, [postId]: true }));
+      try {
+        const res = await api.getPostComments(postId);
+        setPostComments(prev => ({ ...prev, [postId]: res.data ?? [] }));
+      } catch { /* empty */ }
+      setCommentLoading(prev => ({ ...prev, [postId]: false }));
+    }
+  }, [expandedComments, postComments]);
+
+  async function submitComment(postId: string) {
+    const body = commentInputs[postId]?.trim();
+    if (!body) return;
+    setCommentSubmitting(prev => ({ ...prev, [postId]: true }));
+    try {
+      await api.createComment(postId, body);
+      setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+      // Refetch comments from backend truth
+      const res = await api.getPostComments(postId);
+      setPostComments(prev => ({ ...prev, [postId]: res.data ?? [] }));
+      // Refetch posts to update comment count
+      void queryClient.invalidateQueries({ queryKey: ['posts'] });
+    } catch { /* empty */ }
+    setCommentSubmitting(prev => ({ ...prev, [postId]: false }));
+  }
+
+  // Share handler
+  async function handleShare(postId: string) {
+    const url = `${window.location.origin}/feed#post-${postId}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Gujarati Global', url });
+        setShareState(prev => ({ ...prev, [postId]: 'Shared!' }));
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareState(prev => ({ ...prev, [postId]: 'Copied!' }));
+      }
+    } catch {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareState(prev => ({ ...prev, [postId]: 'Copied!' }));
+      } catch {
+        setShareState(prev => ({ ...prev, [postId]: 'Failed' }));
+      }
+    }
+    setTimeout(() => setShareState(prev => ({ ...prev, [postId]: '' })), 2000);
+  }
+
+  // Sidebar join handler
+  async function handleSidebarJoin(groupId: string) {
+    setJoiningGroups(prev => ({ ...prev, [groupId]: true }));
+    try {
+      await api.joinGroup(groupId);
+      setJoinedGroups(prev => ({ ...prev, [groupId]: true }));
+      void queryClient.invalidateQueries({ queryKey: ['groups'] });
+    } catch { /* empty */ }
+    setJoiningGroups(prev => ({ ...prev, [groupId]: false }));
+  }
+
+  // Sidebar RSVP handler
+  async function handleSidebarRsvp(eventId: string) {
+    setRsvpingEvents(prev => ({ ...prev, [eventId]: true }));
+    try {
+      await api.rsvpEvent(eventId, 'going');
+      setRsvpdEvents(prev => ({ ...prev, [eventId]: true }));
+      void queryClient.invalidateQueries({ queryKey: ['events'] });
+    } catch { /* empty */ }
+    setRsvpingEvents(prev => ({ ...prev, [eventId]: false }));
   }
 
   const staggerVariants = isReduced ? reduced.stagger : stagger.normal;
@@ -127,23 +244,39 @@ export default function FeedPage() {
               </div>
 
               <AnimatePresence>
-                {(composeFocused || composeText) && (
+                {(composeFocused || composeText || composeMediaUrls.length > 0) && (
                   <MotionDiv initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
-                      <MotionButton type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); }}>Cancel</MotionButton>
-                      <MotionButton id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={!composeText.trim() || createPostMutation.isPending}>
-                        {createPostMutation.isPending ? 'Posting…' : 'Post'}
-                      </MotionButton>
+                    {composeMediaUrls.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                        {composeMediaUrls.map((url, i) => (
+                          <div key={i} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                            <img src={url} alt="Upload" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <button type="button" onClick={() => setComposeMediaUrls(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', cursor: 'pointer', fontSize: 12, display: 'grid', placeItems: 'center' }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {uploading && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>⏳ Uploading photo…</div>}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'space-between', alignItems: 'center' }}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>📷 Add Photo</button>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <MotionButton type="button" className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { setComposeFocused(false); setComposeText(''); setComposeMediaUrls([]); }}>Cancel</MotionButton>
+                        <MotionButton id="post-submit" type="submit" className="btn btn-primary btn-sm" whileTap={buttonTap} disabled={(!composeText.trim() && composeMediaUrls.length === 0) || createPostMutation.isPending || uploading}>
+                          {createPostMutation.isPending ? 'Posting…' : 'Post'}
+                        </MotionButton>
+                      </div>
                     </div>
                   </MotionDiv>
                 )}
               </AnimatePresence>
 
-              {!composeFocused && !composeText && (
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{ display: 'none' }} onChange={e => { void handlePhotoSelect(e); }} />
+
+              {!composeFocused && !composeText && composeMediaUrls.length === 0 && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                  <button type="button" id="compose-photo" className="btn btn-ghost btn-sm" onClick={() => setComposeFocused(true)}>📷 Photo</button>
-                  <button type="button" id="compose-event" className="btn btn-ghost btn-sm" onClick={() => router.push('/events')}>🎉 Event</button>
-                  <button type="button" id="compose-resource" className="btn btn-ghost btn-sm" onClick={() => router.push('/resources')}>📋 Resource</button>
+                  <button type="button" id="compose-photo" className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>📷 Photo</button>
+                  <button type="button" id="compose-event" className="btn btn-ghost btn-sm" onClick={() => router.push('/events/create')}>🎉 Event</button>
+                  <button type="button" id="compose-resource" className="btn btn-ghost btn-sm" onClick={() => router.push('/resources/create')}>📋 Resource</button>
                 </div>
               )}
             </form>
@@ -186,6 +319,14 @@ export default function FeedPage() {
 
                     <p className="post-body">{post.body}</p>
 
+                    {post.mediaUrls?.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                        {post.mediaUrls.map((url: string, i: number) => (
+                          <img key={i} src={url} alt="Post media" style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 8, objectFit: 'cover' }} />
+                        ))}
+                      </div>
+                    )}
+
                     {post.tags.length > 0 && (
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                         {post.tags.map((tag: string) => <span key={tag} className="badge badge-indigo" style={{ fontSize: 11 }}>{tag}</span>)}
@@ -209,13 +350,52 @@ export default function FeedPage() {
                         {post.liked ? 'Liked' : 'Like'}
                         <span style={{ color: 'var(--text-muted)' }}>{post.likes}</span>
                       </MotionButton>
-                      <MotionButton id={`comment-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap}>
+                      <MotionButton id={`comment-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void toggleComments(post.id); }}>
                         💬 Comment <span style={{ color: 'var(--text-muted)' }}>{post.comments}</span>
                       </MotionButton>
-                      <MotionButton id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap}>
-                        ↗ Share
+                      <MotionButton id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void handleShare(post.id); }}>
+                        {shareState[post.id] ? `✓ ${shareState[post.id]}` : '↗ Share'}
                       </MotionButton>
                     </div>
+
+                    {/* Inline Comment Panel */}
+                    {expandedComments[post.id] && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                        {commentLoading[post.id] ? (
+                          <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 8 }}>Loading comments…</div>
+                        ) : (
+                          <>
+                            {(postComments[post.id] ?? []).length === 0 && (
+                              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 0 8px' }}>No comments yet. Be the first!</div>
+                            )}
+                            {(postComments[post.id] ?? []).map((c: any) => (
+                              <div key={c.id} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
+                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'grid', placeItems: 'center', fontSize: 12, flexShrink: 0, fontWeight: 700 }}>
+                                  {(c.author_display_name ?? 'U').charAt(0)}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13 }}><strong>{c.author_display_name ?? 'User'}</strong> <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{new Date(c.created_at).toLocaleDateString()}</span></div>
+                                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{c.body}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <input
+                            className="input"
+                            style={{ flex: 1, fontSize: 13 }}
+                            placeholder="Write a comment…"
+                            value={commentInputs[post.id] ?? ''}
+                            onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submitComment(post.id); } }}
+                          />
+                          <button className="btn btn-primary btn-sm" onClick={() => { void submitComment(post.id); }} disabled={!commentInputs[post.id]?.trim() || commentSubmitting[post.id]}>
+                            {commentSubmitting[post.id] ? '…' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </MotionArticle>
                 ))}
               </AnimatePresence>
@@ -242,7 +422,13 @@ export default function FeedPage() {
                       <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.member_count?.toLocaleString()} members</div>
                     </div>
-                    <a href="/groups" className="btn btn-sm btn-secondary" style={{ fontSize: 12, padding: '4px 11px' }}>Join</a>
+                    {joinedGroups[g.id] || g.myMembership?.status === 'active' ? (
+                      <span className="btn btn-sm btn-ghost" style={{ fontSize: 12, padding: '4px 11px', color: 'var(--brand-teal)' }}>✓ Joined</span>
+                    ) : (
+                      <button className="btn btn-sm btn-secondary" style={{ fontSize: 12, padding: '4px 11px' }} onClick={() => { void handleSidebarJoin(g.id); }} disabled={joiningGroups[g.id]}>
+                        {joiningGroups[g.id] ? '…' : 'Join'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -265,7 +451,13 @@ export default function FeedPage() {
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                       📅 {new Date(evt.starts_at).toLocaleDateString()}
                     </div>
-                    <a href="/events" className="btn btn-secondary btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }}>RSVP →</a>
+                    {rsvpdEvents[evt.id] || evt.my_rsvp === 'going' ? (
+                      <span className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12, color: 'var(--brand-teal)' }}>✓ Going</span>
+                    ) : (
+                      <button className="btn btn-secondary btn-sm" style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }} onClick={() => { void handleSidebarRsvp(evt.id); }} disabled={rsvpingEvents[evt.id]}>
+                        {rsvpingEvents[evt.id] ? '…' : 'RSVP →'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

@@ -24,6 +24,7 @@ function normalisePost(p: any) {
     comments: (p.comment_count as number) ?? 0,
     tags: [] as string[],
     group: (p.group_name as string | null) ?? undefined,
+    mediaUrls: (p.media_urls as string[] | null) ?? [],
   };
 }
 

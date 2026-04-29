@@ -106,6 +106,30 @@ export const api = {
   },
   createResource: (body: unknown) => fetcher('/resources', { method: 'POST', body: JSON.stringify(body) }),
 
+  // ── Comments ─────────────────────────────────────────────────
+  getPostComments: (postId: string) => fetcher(`/posts/${postId}/comments`),
+  createComment: (postId: string, body: string) =>
+    fetcher(`/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+
+  // ── Media ───────────────────────────────────────────────────
+  uploadMedia: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = getAccessToken();
+    return fetch(`/api/backend/media/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any)?.errors?.[0]?.message ?? 'Upload failed');
+      }
+      return res.json();
+    });
+  },
+
   // ── Users / Profile ─────────────────────────────────────────
   getMyProfile: () => fetcher('/users/me'),
   updateProfile: (body: unknown) => fetcher('/users/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
