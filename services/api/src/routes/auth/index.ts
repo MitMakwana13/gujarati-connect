@@ -77,11 +77,12 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const body = registerSchema.parse(req.body);
+      const normalizedEmail = body.email.trim().toLowerCase();
 
       // Check email uniqueness
       const existing = await app.db.query<{ id: string }>(
         'SELECT id FROM users WHERE email = $1',
-        [body.email],
+        [normalizedEmail],
       );
       if (existing.rows.length > 0) {
         throw new ConflictError('An account with this email already exists');
@@ -93,7 +94,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
         `INSERT INTO users (email, password_hash, auth_provider, role, status, email_verified)
          VALUES ($1, $2, 'email', 'user', 'active', false)
          RETURNING id, role`,
-        [body.email, passwordHash],
+        [normalizedEmail, passwordHash],
       );
 
       const user = result.rows[0];
@@ -106,10 +107,10 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       );
 
       // Generate and store OTP for email verification
-      const otp = await generateAndStoreOtp(app, body.email);
+      const otp = await generateAndStoreOtp(app, normalizedEmail);
 
       // Send OTP via email service
-      await emailService.sendOtpEmail(body.email, otp, app.log);
+      await emailService.sendOtpEmail(normalizedEmail, otp, app.log);
 
       await auditLog(app, {
         actorId: user.id,
@@ -123,9 +124,49 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(201).send({
         data: {
           message: 'Account created. Please verify your email.',
-          email: body.email,
+          email: normalizedEmail,
         },
       });
+    },
+  );
+
+  // ── POST /resend-otp ──────────────────────────────────────
+  app.post(
+    '/resend-otp',
+    {
+      config: { rateLimit: { max: config.rateLimit.auth.max, timeWindow: config.rateLimit.auth.windowMs } },
+      schema: {
+        tags: ['auth'],
+        summary: 'Resend email verification OTP',
+        body: { type: 'object', required: ['email'], properties: { email: { type: 'string' } } },
+      },
+    },
+    async (req, reply) => {
+      const { email } = req.body as { email: string };
+      const normalizedEmail = email.trim().toLowerCase();
+      
+      const cooldownKey = `cooldown:otp:${normalizedEmail}`;
+      const hasCooldown = await app.redis.get(cooldownKey);
+      
+      const neutralResponse = { data: { message: 'If an account exists, a new verification code has been sent.' } };
+      
+      if (hasCooldown) {
+        return reply.send(neutralResponse);
+      }
+
+      const result = await app.db.query<{ id: string; email_verified: boolean }>(
+        'SELECT id, email_verified FROM users WHERE email = $1',
+        [normalizedEmail],
+      );
+      
+      const user = result.rows[0];
+      if (user && !user.email_verified) {
+        await app.redis.setex(cooldownKey, 60, '1');
+        const otp = await generateAndStoreOtp(app, normalizedEmail);
+        await emailService.sendOtpEmail(normalizedEmail, otp, app.log);
+      }
+      
+      return reply.send(neutralResponse);
     },
   );
 
@@ -138,8 +179,9 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const { email, otp } = otpVerifySchema.parse(req.body);
+      const normalizedEmail = email.trim().toLowerCase();
 
-      const storedOtp = await app.redis.get(`${OTP_PREFIX}${email}`);
+      const storedOtp = await app.redis.get(`${OTP_PREFIX}${normalizedEmail}`);
       if (!storedOtp || storedOtp !== otp) {
         throw new AppError('INVALID_OTP', 'Invalid or expired OTP', 400);
       }
@@ -148,7 +190,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
         `UPDATE users SET email_verified = true, updated_at = NOW()
          WHERE email = $1
          RETURNING id, role, status`,
-        [email],
+        [normalizedEmail],
       );
 
       const user = result.rows[0];
@@ -159,7 +201,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // Delete OTP after successful verification
-      await app.redis.del(`${OTP_PREFIX}${email}`);
+      await app.redis.del(`${OTP_PREFIX}${normalizedEmail}`);
 
       const tokens = await app.generateTokens(user.id, email, user.role as UserRole);
 
@@ -185,6 +227,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const { email, password } = loginSchema.parse(req.body);
+      const normalizedEmail = email.trim().toLowerCase();
 
       const result = await app.db.query<{
         id: string;
@@ -194,7 +237,7 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
         email_verified: boolean;
       }>(
         'SELECT id, role, status, password_hash, email_verified FROM users WHERE email = $1',
-        [email],
+        [normalizedEmail],
       );
 
       const user = result.rows[0];
@@ -214,12 +257,12 @@ export default async function authRoutes(app: FastifyInstance): Promise<void> {
 
       if (!user.email_verified) {
         // Resend OTP
-        const otp = await generateAndStoreOtp(app, email);
-        await emailService.sendOtpEmail(email, otp, app.log);
+        const otp = await generateAndStoreOtp(app, normalizedEmail);
+        await emailService.sendOtpEmail(normalizedEmail, otp, app.log);
         throw new AppError('EMAIL_UNVERIFIED', 'Please verify your email before logging in', 403);
       }
 
-      const tokens = await app.generateTokens(user.id, email, user.role as UserRole);
+      const tokens = await app.generateTokens(user.id, normalizedEmail, user.role as UserRole);
       await app.db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
       const profile = await getPublicProfile(app, user.id);

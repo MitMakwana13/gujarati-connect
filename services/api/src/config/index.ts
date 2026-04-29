@@ -107,18 +107,11 @@ export const config = {
   },
 
   email: {
-    host: optionalEnv('EMAIL_SMTP_HOST', 'localhost'),
-    port: optionalIntEnv('EMAIL_SMTP_PORT', 1025),
-    user: optionalEnv('EMAIL_SMTP_USER', ''),
-    pass: (() => {
-      const val = process.env['EMAIL_SMTP_PASS'] ?? '';
-      if (!val && optionalEnv('NODE_ENV', 'development') === 'production') {
-        // Warn but do not crash — OTP will fall back to console logging
-        console.warn('[config] EMAIL_SMTP_PASS not set: OTP emails will log to console instead of sending');
-      }
-      return val;
-    })(),
-    from: optionalEnv('EMAIL_FROM', 'noreply@gujaratiglobal.com'),
+    host: requireProdEnv('EMAIL_SMTP_HOST') || 'localhost',
+    port: parseInt(requireProdEnv('EMAIL_SMTP_PORT') || '1025', 10),
+    user: requireProdEnv('EMAIL_SMTP_USER'),
+    pass: requireProdEnv('EMAIL_SMTP_PASS'),
+    from: requireProdEnv('EMAIL_FROM') || 'noreply@gujaratiglobal.com',
   },
 
   bcryptRounds: optionalIntEnv('BCRYPT_ROUNDS', 12),

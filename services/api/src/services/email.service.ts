@@ -37,22 +37,22 @@ export class EmailService {
       await this.transporter.sendMail({
         from: config.email.from,
         to,
-        subject: 'Your Gujarati Global Verification Code',
-        text: `Your verification code is: ${otp}\n\nIt will expire in 10 minutes.\nIf you didn't request this, you can safely ignore this email.`,
+        subject: 'Your Gujarati Connect verification code',
+        text: `Your Gujarati Connect verification code is:\n\n${otp}\n\nThis code expires in 10 minutes. If you did not request this, you can safely ignore this email.`,
         html: `
           <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 8px;">
-            <h2 style="color: #ea580c;">Gujarati Global</h2>
-            <p>Your verification code is:</p>
+            <h2 style="color: #ea580c;">Gujarati Connect</h2>
+            <p>Your Gujarati Connect verification code is:</p>
             <h1 style="font-size: 32px; letter-spacing: 4px; color: #111;">${otp}</h1>
-            <p style="color: #666; font-size: 14px;">It will expire in 10 minutes.</p>
+            <p style="color: #666; font-size: 14px;">This code expires in 10 minutes.</p>
             <hr style="border: none; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-            <p style="color: #999; font-size: 12px;">If you didn't request this, you can safely ignore this email.</p>
+            <p style="color: #999; font-size: 12px;">If you did not request this, you can safely ignore this email.</p>
           </div>
         `,
       });
       logger.info({ email: to }, '[EmailService] OTP email sent successfully');
     } catch (error) {
-      logger.error({ err: error, email: to }, '[EmailService] Failed to send OTP email');
+      logger.error({ email: to, err: error instanceof Error ? error.message : 'unknown' }, '[EmailService] Failed to send OTP email');
       throw new Error('Failed to send verification email');
     }
   }
