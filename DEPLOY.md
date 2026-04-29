@@ -15,7 +15,7 @@ Zero-to-live guide for GujaratiConnect. Follow in order. Total time: ~60 minutes
                  │                   │                    │
                  ▼                   ▼                    ▼
          ┌──────────────┐    ┌──────────────┐    ┌─────────────────┐
-         │  Supabase    │    │  Upstash     │    │ services/worker │
+         │  Railway     │    │  Upstash     │    │ services/worker │
          │  Postgres    │    │  Redis       │    │ Railway         │
          └──────────────┘    └──────────────┘    └─────────────────┘
 ```
@@ -31,7 +31,7 @@ Media files go to Supabase Storage (already wired via `SUPABASE_URL` + `SUPABASE
 | Frontend | Vercel — Root Directory: `apps/web` |
 | Backend API | Railway — config: `services/api/railway.json` |
 | Worker | Railway — config: `services/worker/railway.json` |
-| Database | Supabase Postgres |
+| Database | Railway Postgres |
 | Cache | Upstash Redis (TLS `rediss://`) |
 | Storage | Supabase Storage (bucket: `media`) |
 
@@ -39,13 +39,10 @@ Media files go to Supabase Storage (already wired via `SUPABASE_URL` + `SUPABASE
 
 ## Step 1 — Provision data services (15 min)
 
-### Supabase (Postgres + Storage)
-1. Create project at https://supabase.com
-2. Settings → Database → Connection String → **Session pooler** → copy the URL, append `?sslmode=require`
-   ```
-   DATABASE_URL=postgresql://postgres.xxx:PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require
-   ```
-3. Storage → New bucket named `media` → set to **public**
+### Railway Postgres
+1. In your Railway project, click **New** → **Database** → **Add PostgreSQL**
+2. Railway automatically sets `DATABASE_URL` for any services in the same environment.
+3. For local migrations, copy the **Public URL** from the Postgres database Settings tab.
 
 ### Upstash (Redis)
 1. Create database at https://upstash.com
@@ -59,15 +56,15 @@ Media files go to Supabase Storage (already wired via `SUPABASE_URL` + `SUPABASE
 
 ## Step 2 — Run database migrations (5 min)
 
-From your local machine (requires `DATABASE_URL` from Step 1):
+From your local machine (requires the external public `DATABASE_URL` from Railway):
 
 ```bash
-DATABASE_URL="<your-supabase-postgres-url>" pnpm migrate
+DATABASE_URL="<your-railway-public-postgres-url>" pnpm migrate
 ```
 
 Optionally seed demo data:
 ```bash
-DATABASE_URL="<your-supabase-postgres-url>" pnpm exec tsx scripts/seed-dev-data.ts
+DATABASE_URL="<your-railway-public-postgres-url>" pnpm exec tsx scripts/seed-dev-data.ts
 ```
 
 The migrator is idempotent — safe to re-run. All SQL files from `scripts/migrations/` are applied in order.
