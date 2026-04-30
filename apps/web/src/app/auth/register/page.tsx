@@ -20,7 +20,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('form');
   const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', password: '', userType: '',
+    displayName: '', email: '', password: '', userType: '',
   });
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
@@ -136,15 +136,9 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="form-group">
-              <label className="label" htmlFor="first-name">First name</label>
-              <input id="first-name" type="text" className="input" placeholder="Jay" value={form.firstName} onChange={(e) => update('firstName', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="label" htmlFor="last-name">Last name</label>
-              <input id="last-name" type="text" className="input" placeholder="Patel" value={form.lastName} onChange={(e) => update('lastName', e.target.value)} required />
-            </div>
+          <div className="form-group">
+            <label className="label" htmlFor="display-name">Display name</label>
+            <input id="display-name" type="text" className="input" placeholder="Jay Patel" value={form.displayName} onChange={(e) => update('displayName', e.target.value)} required minLength={2} maxLength={60} />
           </div>
 
           <div className="form-group">

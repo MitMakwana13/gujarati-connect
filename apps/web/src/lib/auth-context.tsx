@@ -29,8 +29,7 @@ interface AuthContextValue {
 }
 
 interface RegisterData {
-  firstName: string;
-  lastName: string;
+  displayName: string;
   email: string;
   password: string;
   userType: string;
@@ -125,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           email: data.email,
           password: data.password,
-          displayName: `${data.firstName} ${data.lastName}`,
+          displayName: data.displayName.trim(),
         }),
       });
       const json = await res.json() as { errors?: { message: string }[] };
