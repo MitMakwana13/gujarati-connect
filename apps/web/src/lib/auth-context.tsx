@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // App boot rehydration: call /refresh to restore session from HttpOnly cookie
   useEffect(() => {
-    fetch('/api/backend/auth/refresh', { method: 'POST', credentials: 'include' })
+    fetch('/api/backend/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: '{}' })
       .then(async (res) => {
         if (!res.ok) throw new Error('Refresh failed');
         const json = await res.json();

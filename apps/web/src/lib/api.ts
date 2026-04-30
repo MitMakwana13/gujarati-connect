@@ -8,6 +8,7 @@ async function refreshAccessToken(): Promise<string | null> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
+      body: '{}',
     })
       .then(async (refreshRes) => {
         if (!refreshRes.ok) throw new Error('Refresh failed');
