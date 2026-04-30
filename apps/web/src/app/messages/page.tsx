@@ -7,8 +7,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import AppNav from '@/components/AppNav';
-import { fadeUp, buttonTap, reduced, stagger } from '@/lib/motion';
+import { fadeUp, buttonTap, messageBubble, reduced, stagger } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { MessageRowSkeleton, MessageBubbleSkeleton } from '@/components/ui/Skeleton';
 
 type Conversation = {
   id: string;
@@ -108,7 +109,9 @@ export default function MessagesPage() {
         {conversationsError ? (
           <EmptyState icon="⚠️" title="Could not load messages" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
         ) : conversationsLoading ? (
-          <div className="card" style={{ padding: 24 }}>Loading conversations…</div>
+          <div className="card" style={{ padding: 12 }}>
+            {Array.from({ length: 4 }).map((_, i) => <MessageRowSkeleton key={i} />)}
+          </div>
         ) : conversations.length === 0 ? (
           <EmptyState
             icon="💬"
@@ -166,22 +169,34 @@ export default function MessagesPage() {
 
               <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {messagesLoading ? (
-                  <p style={{ color: 'var(--text-muted)' }}>Loading messages…</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <MessageBubbleSkeleton align="left" />
+                    <MessageBubbleSkeleton align="right" />
+                    <MessageBubbleSkeleton align="left" />
+                  </div>
                 ) : messages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <div style={{ fontSize: 42, marginBottom: 8 }}>👋</div>
                     <div>No messages in this conversation yet.</div>
                   </div>
                 ) : (
-                  messages.map((message) => {
+                  messages.map((message, idx) => {
                     const mine = message.sender_id === user.id;
                     return (
-                      <div key={message.id} id={`message-${message.id}`} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                      <motion.div
+                        key={message.id}
+                        id={`message-${message.id}`}
+                        variants={messageBubble}
+                        initial="hidden"
+                        animate="visible"
+                        transition={{ delay: idx * 0.03 }}
+                        style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}
+                      >
                         <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: 16, background: mine ? 'var(--brand-indigo)' : 'var(--bg-elevated)', color: mine ? 'var(--text-inverse)' : 'var(--text-primary)' }}>
                           <div style={{ fontSize: 14, lineHeight: 1.5 }}>{message.body}</div>
                           <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>{timeLabel(message.created_at)}</div>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })
                 )}
@@ -202,8 +217,9 @@ export default function MessagesPage() {
                   className="btn btn-primary"
                   whileTap={buttonTap}
                   disabled={!draft.trim() || !selectedId || sendMutation.isPending}
+                  style={{ minWidth: 80 }}
                 >
-                  {sendMutation.isPending ? 'Sending…' : 'Send'}
+                  {sendMutation.isPending ? <><span className="spinner spinner-sm" /> Sending</> : 'Send'}
                 </motion.button>
               </form>
             </section>

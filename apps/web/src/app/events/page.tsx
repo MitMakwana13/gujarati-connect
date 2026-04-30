@@ -8,7 +8,7 @@ import AppNav from '@/components/AppNav';
 import { useEvents, useRSVP, useCancelRSVP, type ApiEvent } from '@/hooks/useEvents';
 import { stagger, fadeUp, buttonTap, scalePop, reduced } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PostCardSkeleton } from '@/components/ui/Skeleton';
+import { PostCardSkeleton, EventCardSkeleton } from '@/components/ui/Skeleton';
 
 const TYPE_BADGES: Record<string, string> = {
   garba: 'badge-saffron', career: 'badge-indigo', cricket: 'badge-teal',
@@ -89,14 +89,14 @@ export default function EventsPage() {
         </motion.div>
 
         {actionError && (
-          <div className="card" style={{ padding: 12, marginBottom: 24, background: '#ef4444', color: 'white', fontWeight: 600 }}>
+          <div className="error-banner" style={{ marginBottom: 24 }}>
             ⚠️ {(actionError as Error).message || 'An error occurred while processing your request.'}
           </div>
         )}
 
         {eventsLoading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 1fr))', gap: 14 }}>
-            {Array.from({ length: 4 }).map((_, i) => <PostCardSkeleton key={i} />)}
+            {Array.from({ length: 4 }).map((_, i) => <EventCardSkeleton key={i} />)}
           </div>
         ) : error ? (
           <EmptyState icon="⚠️" title="Could not load events" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />

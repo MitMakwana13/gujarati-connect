@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const rm = useReducedMotion();
   const [editing, setEditing] = useState(false);
   const [formError, setFormError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const { data: profile, isLoading: profileLoading } = useMyProfile();
   const updateProfileMutation = useUpdateProfile();
@@ -85,7 +86,7 @@ export default function ProfilePage() {
     }
 
     updateProfileMutation.mutate(updates, {
-      onSuccess: () => { setEditing(false); },
+      onSuccess: () => { setEditing(false); setSaveSuccess(true); setTimeout(() => setSaveSuccess(false), 2500); },
       onError: (err: any) => { setFormError(err?.message ?? 'Failed to save profile. Please try again.'); },
     });
   }
@@ -123,6 +124,18 @@ export default function ProfilePage() {
           </div>
 
           <div className="divider" style={{ marginBottom: 24 }} />
+
+          <AnimatePresence>
+            {saveSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                className="success-feedback"
+                style={{ marginBottom: 16 }}
+              >
+                ✓ Profile updated successfully
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <AnimatePresence mode="wait">
             {editing ? (

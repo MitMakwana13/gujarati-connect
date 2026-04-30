@@ -24,22 +24,35 @@ export function EmptyState({ icon = '✨', title, description, action }: EmptySt
         justifyContent: 'center',
         textAlign: 'center',
         padding: '64px 24px',
-        gap: 12,
+        gap: 14,
       }}
     >
-      <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 4 }}>{icon}</div>
+      {/* Icon with gradient background circle */}
+      <div style={{
+        width: 88,
+        height: 88,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, hsla(32,98%,55%,0.1), hsla(247,75%,64%,0.1))',
+        border: '1px solid hsla(220,20%,100%,0.06)',
+        display: 'grid',
+        placeItems: 'center',
+        marginBottom: 4,
+      }}>
+        <span style={{ fontSize: 40, lineHeight: 1 }}>{icon}</span>
+      </div>
       <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{title}</h3>
       {description && (
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, maxWidth: 320, margin: 0 }}>{description}</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14, maxWidth: 340, margin: 0, lineHeight: 1.6 }}>{description}</p>
       )}
       {action && (
-        <button
+        <motion.button
           className="btn btn-primary"
           onClick={action.onClick}
+          whileTap={{ scale: 0.96 }}
           style={{ marginTop: 8 }}
         >
           {action.label}
-        </button>
+        </motion.button>
       )}
     </motion.div>
   );

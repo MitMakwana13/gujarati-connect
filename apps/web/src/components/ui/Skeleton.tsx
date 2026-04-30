@@ -10,10 +10,11 @@ interface SkeletonProps {
   style?: React.CSSProperties;
 }
 
-export function Skeleton({ width = '100%', height = 16, borderRadius = 8, style }: SkeletonProps) {
+export function Skeleton({ width = '100%', height = 16, borderRadius = 8, className, style }: SkeletonProps) {
   const reduced = useReducedMotion();
   return (
     <div
+      className={className}
       style={{
         width,
         height,
@@ -78,6 +79,57 @@ export function MessageRowSkeleton() {
         </div>
         <Skeleton width="70%" height={12} />
       </div>
+    </div>
+  );
+}
+
+export function GroupCardSkeleton() {
+  return (
+    <div className="card" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+        <Skeleton width={54} height={54} borderRadius={14} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Skeleton width="65%" height={16} />
+          <Skeleton width="40%" height={12} />
+        </div>
+      </div>
+      <Skeleton height={13} />
+      <Skeleton height={13} width="80%" />
+      <div style={{ display: 'flex', gap: 6 }}>
+        <Skeleton width={60} height={22} borderRadius={20} />
+        <Skeleton width={55} height={22} borderRadius={20} />
+      </div>
+      <Skeleton width={90} height={32} borderRadius={8} />
+    </div>
+  );
+}
+
+export function EventCardSkeleton() {
+  return (
+    <div className="card" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Skeleton width={70} height={22} borderRadius={20} />
+      </div>
+      <Skeleton width="80%" height={16} />
+      <Skeleton height={13} />
+      <Skeleton height={13} width="60%" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <Skeleton width="50%" height={13} />
+        <Skeleton width="40%" height={13} />
+      </div>
+      <Skeleton width={100} height={32} borderRadius={8} />
+    </div>
+  );
+}
+
+export function MessageBubbleSkeleton({ align = 'left' }: { align?: 'left' | 'right' }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
+      <Skeleton
+        width={align === 'right' ? '55%' : '65%'}
+        height={48}
+        borderRadius={16}
+      />
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import AppNav from '@/components/AppNav';
 import { stagger, fadeUp, buttonTap, reduced } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PostCardSkeleton } from '@/components/ui/Skeleton';
+import { PersonCardSkeleton } from '@/components/ui/Skeleton';
 
 type DiscoverUser = {
   id: string;
@@ -126,7 +126,7 @@ export default function DiscoverPage() {
 
         {usersLoading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-            {Array.from({ length: 6 }).map((_, i) => <PostCardSkeleton key={i} />)}
+            {Array.from({ length: 6 }).map((_, i) => <PersonCardSkeleton key={i} />)}
           </div>
         ) : error ? (
           <EmptyState icon="⚠️" title="Could not load people" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
@@ -177,7 +177,7 @@ export default function DiscoverPage() {
                     whileTap={buttonTap}
                     onClick={() => connect(person.id)}
                     disabled={sent}
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', color: sent ? 'hsl(150,60%,55%)' : undefined, borderColor: sent ? 'hsla(150,60%,55%,0.3)' : undefined, transition: 'all 0.25s' }}
                   >
                     {sent ? '✓ Request Sent' : '🤝 Connect'}
                   </motion.button>

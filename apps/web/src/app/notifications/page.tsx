@@ -8,6 +8,7 @@ import AppNav from '@/components/AppNav';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead, type ApiNotification } from '@/hooks/useNotifications';
 import { stagger, fadeUp, buttonTap, reduced } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const TYPE_COLORS: Record<string, string> = {
   group_activity: 'var(--brand-indigo)',
@@ -77,10 +78,10 @@ export default function NotificationsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="card" style={{ padding: 18, display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div className="skeleton" style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0 }} />
+                <Skeleton width={44} height={44} borderRadius="50%" />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div className="skeleton" style={{ height: 14, width: '60%', borderRadius: 6 }} />
-                  <div className="skeleton" style={{ height: 12, width: '80%', borderRadius: 6 }} />
+                  <Skeleton height={14} width="60%" />
+                  <Skeleton height={12} width="80%" />
                 </div>
               </div>
             ))}

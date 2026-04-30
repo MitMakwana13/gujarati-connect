@@ -391,12 +391,24 @@ export default function FeedPage() {
                         💬 Comment <span style={{ color: 'var(--text-muted)' }}>{post.comments}</span>
                       </motion.button>
 
-                      <motion.button id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void sharePost(post.id); }}>
-                        ↗ {copiedPostId === post.id ? 'Copied!' : 'Share'}
+                      <motion.button id={`share-${post.id}`} className="btn btn-ghost btn-sm" whileTap={buttonTap} onClick={() => { void sharePost(post.id); }} style={{ color: copiedPostId === post.id ? 'hsl(150,60%,55%)' : 'var(--text-secondary)', transition: 'color 0.2s' }}>
+                        {copiedPostId === post.id ? '✓' : '↗'} {copiedPostId === post.id ? 'Copied!' : 'Share'}
                       </motion.button>
                     </div>
 
-                    {expandedComments.has(post.id) && <InlineComments postId={post.id} />}
+                    <AnimatePresence>
+                      {expandedComments.has(post.id) && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.25 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <InlineComments postId={post.id} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.article>
                 ))}
               </AnimatePresence>
@@ -406,7 +418,7 @@ export default function FeedPage() {
 
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {sideActionError && (
-            <div className="card" style={{ padding: 12, background: '#ef4444', color: 'white', fontSize: 13, fontWeight: 700 }}>
+            <div className="error-banner" style={{ fontSize: 13 }}>
               ⚠️ {sideActionError}
             </div>
           )}
@@ -433,7 +445,7 @@ export default function FeedPage() {
                       <button
                         id={`sidebar-join-${g.id}`}
                         className="btn btn-sm btn-secondary"
-                        style={{ fontSize: 12, padding: '4px 11px' }}
+                        style={{ fontSize: 12, padding: '4px 11px', color: isJoined ? 'hsl(150,60%,55%)' : undefined, borderColor: isJoined ? 'hsla(150,60%,55%,0.3)' : undefined, transition: 'all 0.2s' }}
                         disabled={isJoined || isPending || joinGroupMutation.isPending}
                         onClick={() => joinSidebarGroup(g.id)}
                       >
@@ -466,7 +478,7 @@ export default function FeedPage() {
                       <button
                         id={`sidebar-rsvp-${evt.id}`}
                         className="btn btn-secondary btn-sm"
-                        style={{ marginTop: 8, display: 'inline-flex', fontSize: 12 }}
+                        style={{ marginTop: 8, display: 'inline-flex', fontSize: 12, color: isGoing ? 'hsl(150,60%,55%)' : undefined, borderColor: isGoing ? 'hsla(150,60%,55%,0.3)' : undefined, transition: 'all 0.2s' }}
                         disabled={isGoing || rsvpMutation.isPending}
                         onClick={() => rsvpSidebarEvent(evt.id)}
                       >

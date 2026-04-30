@@ -74,14 +74,16 @@ export default function AppNav() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           {user ? (
             <>
-              <button
+              <motion.button
                 id="nav-notifications"
                 className="btn btn-ghost btn-icon"
                 style={{ fontSize: 18, position: 'relative' }}
                 onClick={() => router.push('/notifications')}
+                whileHover={reduced ? undefined : { scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
               >
                 🔔
-              </button>
+              </motion.button>
               <motion.button
                 id="nav-profile-avatar"
                 whileHover={{ scale: 1.07 }}

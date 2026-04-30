@@ -113,9 +113,10 @@ a { color: inherit; }
   box-shadow: var(--shadow-md);
   transition: border-color var(--t-base), box-shadow var(--t-base);
 }
-/* Hover handled by framer-motion whileHover — remove CSS transform to avoid conflict */
+/* Hover handled by framer-motion whileHover — no CSS transform to avoid conflict */
 .card-hover:hover {
   border-color: var(--border-strong);
+  box-shadow: var(--shadow-lg);
 }
 
 /* ── Surface Panel (no hover) ─────────────────────────────────────── */
@@ -248,11 +249,21 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
   padding: 8px 13px; border-radius: var(--r-sm);
   font-size: 14px; font-weight: 500;
   color: var(--text-secondary); text-decoration: none;
-  transition: color var(--t-fast); position: relative; z-index: 1;
+  transition: color var(--t-fast), background var(--t-fast); position: relative; z-index: 1;
 }
-.nav-link:hover { color: var(--text-primary); }
+.nav-link:hover { color: var(--text-primary); background: var(--bg-glass-light); }
 .nav-link.active { color: var(--text-primary); }
 /* Animated pill via framer-motion layoutId="nav-pill" */
+
+/* ── Mobile nav horizontal scroll ────────────────────────────────── */
+@media (max-width: 780px) {
+  .nav-inner { overflow: hidden; padding: 0 var(--sp-3); gap: var(--sp-2); }
+  .nav-links { overflow-x: auto; scrollbar-width: none; flex: 1; -ms-overflow-style: none; }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-link { flex-shrink: 0; padding: 8px 10px; font-size: 13px; }
+  .nav-link span:last-child { display: none; }
+  .nav-logo { font-size: 18px; }
+}
 
 /* ── Hero orbs ────────────────────────────────────────────────────── */
 .orb { position: absolute; border-radius: 50%; filter: blur(90px); pointer-events: none; }
@@ -354,9 +365,9 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
   padding: 6px 16px; border-radius: var(--r-full);
   font-size: 13px; font-weight: 600; cursor: pointer;
   border: 1px solid var(--border); background: var(--bg-glass-light);
-  color: var(--text-secondary); transition: all var(--t-fast);
+  color: var(--text-secondary); transition: all var(--t-base);
 }
-.chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.chip:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--bg-glass-hover); }
 .chip.active {
   background: linear-gradient(135deg, var(--brand-saffron), var(--brand-saffron-dim));
   color: var(--text-inverse); border-color: transparent;
@@ -399,6 +410,46 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
   100% { transform: scale(1.6); opacity: 0; }
 }
 .animate-fade-up { animation: fadeUp 0.45s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* ── Feedback banners ────────────────────────────────────────────── */
+.error-banner {
+  padding: 12px 16px; border-radius: var(--r-md);
+  background: hsla(350, 80%, 62%, 0.1); border: 1px solid hsla(350, 80%, 62%, 0.25);
+  color: var(--brand-rose); font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.success-feedback {
+  padding: 12px 16px; border-radius: var(--r-md);
+  background: hsla(150, 60%, 45%, 0.1); border: 1px solid hsla(150, 60%, 45%, 0.25);
+  color: hsl(150, 60%, 55%); font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.info-banner {
+  padding: 12px 16px; border-radius: var(--r-md);
+  background: hsla(247, 75%, 64%, 0.08); border: 1px solid hsla(247, 75%, 64%, 0.2);
+  color: var(--brand-indigo); font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── Skeleton utility ────────────────────────────────────────────── */
+.skeleton {
+  background: var(--bg-elevated);
+  background-image: linear-gradient(90deg, var(--bg-elevated) 25%, hsla(220,14%,20%,0.6) 50%, var(--bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Branded spinner ─────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand-saffron);
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+.spinner-sm { width: 14px; height: 14px; border-width: 1.5px; }
 
 /* ── Notification / Unread badge ─────────────────────────────────── */
 .unread-dot {

@@ -8,7 +8,7 @@ import AppNav from '@/components/AppNav';
 import { useGroups, useJoinGroup, useLeaveGroup, type ApiGroup } from '@/hooks/useGroups';
 import { stagger, fadeUp, buttonTap, reduced } from '@/lib/motion';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PostCardSkeleton } from '@/components/ui/Skeleton';
+import { PostCardSkeleton, GroupCardSkeleton } from '@/components/ui/Skeleton';
 
 const TAG_COLORS: Record<string, string> = {
   cricket: 'badge-teal', garba: 'badge-saffron', career: 'badge-indigo',
@@ -71,14 +71,14 @@ export default function GroupsPage() {
         </motion.div>
 
         {actionError && (
-          <div className="card" style={{ padding: 12, marginBottom: 24, background: '#ef4444', color: 'white', fontWeight: 600 }}>
+          <div className="error-banner" style={{ marginBottom: 24 }}>
             ⚠️ {(actionError as Error).message || 'An error occurred while processing your request.'}
           </div>
         )}
 
         {groupsLoading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
-            {Array.from({ length: 6 }).map((_, i) => <PostCardSkeleton key={i} />)}
+            {Array.from({ length: 6 }).map((_, i) => <GroupCardSkeleton key={i} />)}
           </div>
         ) : error ? (
           <EmptyState icon="⚠️" title="Could not load groups" description="Please try again in a moment." action={{ label: 'Retry', onClick: () => window.location.reload() }} />
