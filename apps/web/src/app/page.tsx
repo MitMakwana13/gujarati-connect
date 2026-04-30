@@ -143,6 +143,11 @@ export default function LandingPage() {
       {/* ── Footer ───────────────────────────────────────────── */}
       <footer style={{ padding: '32px 24px', textAlign: 'center', borderTop: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 14 }}>
         <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, background: 'linear-gradient(135deg, var(--brand-saffron), var(--brand-indigo))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: 8 }}>gujarati global</div>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginBottom: 16 }}>
+          <Link href="/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Terms</Link>
+          <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy</Link>
+          <Link href="/support" style={{ color: 'inherit', textDecoration: 'none' }}>Support</Link>
+        </div>
         <p>Connecting the diaspora · Built with ❤️ for our community</p>
       </footer>
     </div>

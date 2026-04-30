@@ -160,7 +160,8 @@ After adding custom domains:
 
 **Recommended free monitoring:**
 - **UptimeRobot** — ping `/health` every 5 min
-- **Sentry** — `@sentry/nextjs` for web, `@sentry/node` for API
+- **Sentry** — `@sentry/nextjs` for web, `@sentry/node` for API. 
+  - Note: Do NOT commit your real Sentry DSNs. Set them in your hosting provider's environment variables (`NEXT_PUBLIC_SENTRY_DSN` in Vercel, `SENTRY_DSN` in Railway). Sentry initialization is optional; if missing, the app will continue to run normally without crashing.
 
 ---
 

@@ -14,6 +14,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCsrfProtection from '@fastify/csrf-protection';
 import cookie from '@fastify/cookie';
+import * as Sentry from '@sentry/node';
 
 import { config } from './config/index.js';
 import { dbPlugin } from './plugins/db.js';
@@ -40,9 +41,30 @@ import adminRoutes from './routes/admin/index.js';
 import csrfRoutes from './routes/csrf.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
+  // ── Sentry Initialization ─────────────────────────────────
+  if (process.env['SENTRY_DSN']) {
+    Sentry.init({
+      dsn: process.env['SENTRY_DSN'],
+      environment: process.env['SENTRY_ENVIRONMENT'] || config.env,
+      tracesSampleRate: process.env['SENTRY_TRACES_SAMPLE_RATE'] ? parseFloat(process.env['SENTRY_TRACES_SAMPLE_RATE']) : 0.05,
+    });
+  }
+
   const app = Fastify({
     logger: {
       level: config.env === 'test' ? 'silent' : 'info',
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'req.headers["set-cookie"]',
+          'password',
+          'otp',
+          'refreshToken',
+          'accessToken',
+        ],
+        censor: '[REDACTED]',
+      },
       ...(config.env === 'development'
         ? {
             transport: {
@@ -61,6 +83,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Trust proxy headers from Azure Front Door
     trustProxy: config.env === 'production',
   });
+
+  // Apply Sentry error handler if configured
+  if (process.env['SENTRY_DSN']) {
+    Sentry.setupFastifyErrorHandler(app);
+  }
 
   // ── Security ──────────────────────────────────────────────
   await app.register(helmet, {

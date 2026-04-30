@@ -135,6 +135,80 @@ async function run() {
     error(`/posts failed`, err.message);
   }
 
+  // 9. Discover endpoint works
+  try {
+    log(`Testing /users/discover...`);
+    const res = await fetch(`${API_URL}/users/discover`, { headers: authHeaders });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    log(`✅ /users/discover works.`);
+  } catch (err: any) {
+    error(`/users/discover failed`, err.message);
+  }
+
+  // 10. Notifications endpoint works
+  try {
+    log(`Testing /notifications...`);
+    const res = await fetch(`${API_URL}/notifications`, { headers: authHeaders });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    log(`✅ /notifications works.`);
+  } catch (err: any) {
+    error(`/notifications failed`, err.message);
+  }
+
+  // 11. Safe Mutation: Create Post, Like, Comment, and Cleanup
+  let createdPostId = '';
+  try {
+    log(`Testing Post Creation (Mutation)...`);
+    const createRes = await fetch(`${API_URL}/posts`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ content: `[SMOKE] Automated test post ${Date.now()}`, scope: 'public' }),
+    });
+    if (!createRes.ok) throw new Error(`Create post failed with status ${createRes.status}`);
+    const postData = await createRes.json();
+    createdPostId = postData.data.id;
+    log(`✅ Post created (${createdPostId}).`);
+
+    log(`Testing Post Like...`);
+    const likeRes = await fetch(`${API_URL}/posts/${createdPostId}/like`, { method: 'POST', headers: authHeaders });
+    if (!likeRes.ok) throw new Error(`Like post failed with status ${likeRes.status}`);
+    log(`✅ Post liked.`);
+
+    log(`Testing Post Comment...`);
+    const commentRes = await fetch(`${API_URL}/posts/${createdPostId}/comments`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ content: '[SMOKE] Automated test comment' }),
+    });
+    if (!commentRes.ok) throw new Error(`Comment failed with status ${commentRes.status}`);
+    log(`✅ Comment created.`);
+
+  } catch (err: any) {
+    error(`Mutation test failed`, err.message);
+  } finally {
+    // Cleanup
+    if (createdPostId) {
+      try {
+        log(`Cleaning up test post...`);
+        const delRes = await fetch(`${API_URL}/posts/${createdPostId}`, { method: 'DELETE', headers: authHeaders });
+        if (!delRes.ok) throw new Error(`Cleanup failed with status ${delRes.status}`);
+        log(`✅ Cleanup successful.`);
+      } catch (err: any) {
+        error(`Failed to cleanup post ${createdPostId}`, err.message);
+      }
+    }
+  }
+
+  // 12. Logout
+  try {
+    log(`Testing Logout...`);
+    const res = await fetch(`${API_URL}/auth/logout`, { method: 'POST', headers: authHeaders });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    log(`✅ Logout works.`);
+  } catch (err: any) {
+    error(`/auth/logout failed`, err.message);
+  }
+
   console.log();
   if (hasFailed) {
     log(`❌ Smoke test finished with errors.`);
